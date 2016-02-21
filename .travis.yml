@@ -1,0 +1,10 @@
+language: c
+
+compiler: gcc
+
+script:
+  - gcc -o machelper main.c
+  - ./machelper version
+
+notifications:
+  email: false
