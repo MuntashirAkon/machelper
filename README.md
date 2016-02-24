@@ -13,18 +13,21 @@ A command line tool for Macintosh as well as Hackintosh to help OSx86 users.
 - Daily usage help
   - Mount EFI partition
   - Remove bad kext during single user mode
-  - Kext installation as well as maintenance, and so on
+  - Kext installation as well as maintenance, and so on.
 
 # Binaries
-Not available here right now. But you can download from [here](http://muntashir.bplaced.com/machelper_0.1.2beta_osx.zip)
+Not available here right now. But you can download from [here](http://muntashir.bplaced.com/machelper_0.9.0beta_osx.zip).
 
 # Contribution & Feature Request
 You are absolutely welcome to contribute and/or request for features.
+
 For contributors: the documentation is still on the progress
 
 # Special Thanks
 To RehabMan for his Clover guide, repositories and kexts.
+
 To olarila.com for their raw image idea.
+
 To osx86.org and insanelymac forum for MBR patch details.
 
 # License

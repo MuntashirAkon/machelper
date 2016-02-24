@@ -1,4 +1,4 @@
-/**
+/*
  * machelper
  * 
  * machelper is a command line tool to
@@ -24,41 +24,88 @@
  * Known Bugs: none so far
  *
  * Author: Muntashir Al-Islam <muntashir.islam96@gmail.com>
- * Version: 0.3.0beta
+ * Version: 0.9.0beta
  * Date: 21 feb, 2016
  * Copyright: 2016 (c) All rights reserved.
  * License: MIT License
- * Editor: CLion
+ * Editor: CLion 1.2
  */
 // Include Essential Header Files
-#include<stdio.h>
-#include<string.h>
-#include<stdlib.h> // system()
-#include<unistd.h> // access()
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>  // system()
+#include <unistd.h>  // access()
+#include "Includes/help.h"
+// #include "Includes/constants.h"
 
+// Boolean
 #define TRUE 1
 #define FALSE 0
 
+// argv[1] is always the verb
+#define VERB argv[1]
+// First argument/option, for readability's sake
+#define ARG_ONE argv[2]
+
+// Exit code for `command not found`
+// #define CMD_404 127
+
+
 // Function Declarations
 int check_arg(char arg_name[]);
-int show_help(int class); // Always return 0
 int run_installer(char type[]);
 int mount_efi(char mount_point[], int interactive);
 int extract_dsdt(char destination[], int disassemble);
-int kext_admin(char class, char src[]);
-int recovery(char class, char src[]);
-int show_error(char subject[]); // Always return -1
+int kext_admin(unsigned int id, char src[]);
+int recovery(unsigned int id, char src[]);
+int show_error(char subject[]); // Always return FAILURE
 
 // Global Variable Declarations
-char version[15] = "0.3.0beta";
-// char verbs[6][15] = {"usb", "hdd", "mount_efi", "kext", "extract_dsdt", "recovery"}
-int total_args = 11;
-char arg_names[11][15] = {"-config", "-ethernet", "-help", "-raid", "-excludeOs", "-os", "-method", "-excludeClover", "-replaceKernel", "-mbrPatch", "-src"};
-char arg_values[11][100] = {"", "", "", "0", "0", "El Capitan", "BaseBinaries", "0", "", "", ""}; // Index 1 is for -config, 2 for -ethernet, etc
-char os_names[3][15] = {"Mavericks", "Yosemite", "El Capitan"}; // Supported Mac OS names
-char methods[3][20] = {"BaseBinaries", "createinstallmedia", "RawImage"}; // Installation methods
+char version[15] = "0.9.0beta";
+// char verbs[7][15] = {"usb", "hdd", "mount_efi", "kext", "extract_dsdt", "recovery", "version"}
+
+/*
+ * Options for USB|HDD
+ * option[0] = argument names for USB|HDD
+ * option[1] = value of the argument of the same index
+ * e.g. if arg is option[0][0], value is option[1][0]
+ */
+char options[2][11][50] = {
+        {"-config", "-ethernet", "-help", "-raid", "-excludeOs", "-os", "-method", "-excludeClover", "-replaceKernel", "-mbrPatch", "-src"},
+        {"", "", "", "0", "0", "El Capitan", "BaseBinaries", "0", "", "", ""}
+};
+/*
+ * Currently Supported OS X names
+ * The OS X names other than these are supported
+ * But I simply doesn't provide any support for them
+ * If you like to support them, just add them here
+ * Note: if you add less than 10.9, createinstallmedia method is not supported
+ */
+char os_names[3][15] = {"Mavericks", "Yosemite", "El Capitan"};
+/*
+ * Installation methods
+ * Currently three methods supported:
+ * 1. BaseBinaries Clone Method: The oldest way
+ * 2. createinstallmedia Method: The newest and recommended way
+ * 3. Raw Image Method: The unrecommended way, which may be called vanilla installation method
+ */
+char methods[3][20] = {"BaseBinaries", "createinstallmedia", "RawImage"};
+/*
+ * Ethernet kext
+ * Supported list of ethernet kexts
+ * These kexts are located at my repo.
+ */
 char ethernets[6][30] = {"RealtekRTL8100", "RealtekRTL8111", "IntelMausiEthernet", "AtherosE2200Ethernet", "BroadcomBCM57xx", "AppleIntelE1000e"};
-char configs[12][30] = {"HD3000_1366x768", "HD3000_1366x768_7series", "HD3000_1600x900", "HD3000_1600x900_7series", "HD4000_1366x768", "HD4000_1366x768_6series", "HD4000_1600x900", "HD4000_1600x900_6series", "HD4600_4400_4200", "HD5000_5100_5200", "HD5300_5500_5600_6000", "HD5600"};
+/*
+ * Clover config
+ *
+ * These configurations are for Intel HD Graphics.
+ * They not only replace the config.plist, but also
+ * apply CI patch for some Graphics
+ *
+ * All the kexts can be found in my repo.
+ */
+char configs[12][30] = {"HD3000_1366x768", "HD3000_1366x768_7series", "HD3000_1600x900", "HD3000_1600x900_7series", "HD4000_1366x768", "HD4000_1366x768_6series", "HD4000_1600x900", "HD4000_1600x900_6series", "HD4600_4400_4200", "HD5000_5100_5200", "HD5300_5500_6000", "HD5600"};
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "OCDFAInspection"
@@ -66,137 +113,128 @@ int main(int args, char *argv[]){
     char confirm;
     switch (args) {
         case 1:
-            show_help(0);
-            return 0;
+            return show_help(DEFAULT);
         default:
-            if (strcmp(argv[1],"usb") == 0 || strcmp(argv[1],"hdd") == 0) { // usb/hdd
+            if (strcmp(VERB,"usb") == 0 || strcmp(VERB,"hdd") == 0) { // usb|hdd
                 if (args == 2) {
                     printf("You did not choose to use any config.plist or ethernet. ");
                 } else {
                     for (int i=2; i<args; ) {
                         if (check_arg(argv[i]) == TRUE) {
-                            if (strcmp(argv[i], arg_names[2]) == 0) { // help
-                                show_help(3);
-                                return 0;
-                            } else if (strcmp(argv[i], arg_names[0]) == 0) { // config
+                            if (strcmp(argv[i], options[0][2]) == 0) { // help
+                                return show_help(USB); // Also HDD
+                            } else if (strcmp(argv[i], options[0][0]) == 0) { // config
                                 if (args > i+1) {
-                                    for (int j=0; j<12; j++) {
+                                    for (int j=0; j<(sizeof(configs)/sizeof(int)); j++) {
                                         if (strcmp(configs[j], argv[i+1]) == 0) {
-                                            strcpy(arg_values[0], argv[i+1]);
+                                            strcpy(options[1][0], argv[i+1]);
                                         }
                                     }
                                     i+=2;
                                 }else{
-                                    show_help(1);
-                                    return 0;
+                                    return show_help(CONFIG);
                                 }
-                            } else if (strcmp(argv[i], arg_names[1]) == 0) { // ethernet
+                            } else if (strcmp(argv[i], options[0][1]) == 0) { // ethernet
                                 if (args > i+1) {
-                                    for (int j=0; j<6; j++) {
+                                    for (int j=0; j<(sizeof(ethernets)/sizeof(int)); j++) {
                                         if (strcmp(ethernets[j], argv[i+1]) == 0) {
-                                            strcpy(arg_values[1], argv[i+1]);
+                                            strcpy(options[1][1], argv[i+1]);
                                         }
                                     }
                                     i+=2;
                                 }else{
-                                    show_help(2);
-                                    return 0;
+                                    show_help(ETHERNET);
                                 }
-                            } else if (strcmp(argv[i], arg_names[5]) == 0) { // os
+                            } else if (strcmp(argv[i], options[0][5]) == 0) { // os
                                 if (args > i+1) {
-                                    for (int j=0; j<3; j++) {
+                                    for (int j=0; j<(sizeof(os_names)/sizeof(int)); j++) {
                                         if (strcmp(os_names[j], argv[i+1]) == 0) {
-                                            strcpy(arg_values[5], argv[i+1]);
+                                            strcpy(options[1][5], argv[i+1]);
                                         }
                                     }
                                     i+=2;
                                 }else{
-                                    show_help(5);
-                                    return 0;
+                                    return show_help(OS);
                                 }
-                            } else if (strcmp(argv[i], arg_names[6]) == 0) { // method
+                            } else if (strcmp(argv[i], options[0][6]) == 0) { // method
                                 if (args > i+1) {
-                                    for (int j=0; j<3; j++) {
+                                    for (int j=0; j<(sizeof(methods)/sizeof(int)); j++) {
                                         if (strcmp(methods[j], argv[i+1]) == 0) {
-                                            strcpy(arg_values[6], argv[i+1]);
+                                            strcpy(options[1][6], argv[i+1]);
                                         }
                                     }
                                     i+=2;
                                 }else{
-                                    show_help(6);
-                                    return 0;
+                                    return show_help(METHOD);
                                 }
-                            } else if (strcmp(argv[i], arg_names[8]) == 0) { // replace kernel
+                            } else if (strcmp(argv[i], options[0][8]) == 0) { // replace kernel
                                 if (args > i+1) {
-                                    strcpy(arg_values[8], argv[i+1]);
+                                    strcpy(options[1][8], argv[i+1]);
                                     i+=2;
                                 }else{
-                                    show_help(8);
-                                    return 0;
+                                    return show_help(REPLACE_KERNEL);
                                 }
-                            } else if (strcmp(argv[i], arg_names[9]) == 0) { // mbr patch
+                            } else if (strcmp(argv[i], options[0][9]) == 0) { // mbr patch
                                 if (args > i+1) {
-                                    strcpy(arg_values[9], argv[i+1]);
+                                    strcpy(options[1][9], argv[i+1]);
                                     i+=2;
                                 }else{
-                                    show_help(9);
-                                    return 0;
+                                    return show_help(MBR_PATCH);
                                 }
-                            } else if (strcmp(argv[i], arg_names[10]) == 0) { // src (for RawImage method)
+                            } else if (strcmp(argv[i], options[0][10]) == 0) { // src (for RawImage method)
                                 if (args > i+1) {
-                                    strcpy(arg_values[10], argv[i+1]);
+                                    strcpy(options[1][10], argv[i+1]);
                                     i+=2;
                                 }else{
-                                    show_help(7);
-                                    return 0;
+                                    return show_help(RAW_IMG_SRC);
                                 }
                             } else {
-                                if (strcmp(arg_names[3], argv[i]) == 0) { // raid
-                                    arg_values[3][0] = '1';
-                                }else if (strcmp(arg_names[4], argv[i]) == 0){ // excludeOs
-                                    arg_values[4][0] = '1';
-                                }else if (strcmp(arg_names[7], argv[i]) == 0){ // excludeClover
-                                    arg_values[7][0] = '1';
+                                if (strcmp(options[0][3], argv[i]) == 0) { // raid
+                                    options[1][3][0] = '1';
+                                }else if (strcmp(options[0][4], argv[i]) == 0){ // excludeOs
+                                    options[1][4][0] = '1';
+                                }else if (strcmp(options[0][7], argv[i]) == 0){ // excludeClover
+                                    options[1][7][0] = '1';
                                 }
                                 i++;
                             }
                         }else return show_error("Invalid Argument(s). Add -help to show help.");
                     }
                     // Set method to BaseBinaries if -mbrPatch and/or -replaceKernel is set
-                    if (strcmp(arg_values[8], "") != 0 || strcmp(arg_values[9], "") != 0) {
-                        strcpy(arg_values[6], methods[0]);
+                    if (strcmp(options[1][8], EMPTY) != 0 || strcmp(options[1][9], EMPTY) != 0) {
+                        strcpy(options[1][6], methods[0]);
                     }
                     // Overwrite BaseBinaries to createinstallmedia, if -excludeClover is given
-                    if (arg_values[7][0] == '1') {
-                        strcpy(arg_values[6], methods[1]);
+                    if (options[1][7][0] == '1') {
+                        strcpy(options[1][6], methods[1]);
                     }
                     // Print a summery
                     printf("\e[1;4mSummery:\e[0m\n"
                            "Installation    : %s\n"
                            , argv[1]);
-                    if (arg_values[7][0] == '1' && argv[1][0] != 'h') { // Exclude config, ethernet, raid, etc for Real Mac
-                        printf("Exclude Clover : %s\n", arg_values[7]);
+                    if (options[1][7][0] == '1' && argv[1][0] != 'h') { // Exclude config, ethernet, raid, etc for Real Mac
+                        printf("Exclude Clover : %s\n", options[1][7]);
                     }else{ // Opp
                         printf(
                                "Config.plist    : %s\n"
                                "Ethernet\t: %s\n"
                                "Raid\t\t: %s\n"
-                        , arg_values[0], arg_values[1], arg_values[3]);
+                        , options[1][0], options[1][1], options[1][3]);
                     }
                     if (argv[1][0] != 'h') { // Show installation info only if usb
-                        printf("Exclude OS\t: %s\n", arg_values[4]);
-                        if (arg_values[4][0] != '1') { // If choose to install OS X
-                            printf("Method\t\t: %s\n", arg_values[6]);
-                            if (arg_values[6][0] != 'R'){ // Show mac version, if not RawImage
-                                printf("Mac Version\t: %s\n", arg_values[5]);
+                        printf("Exclude OS\t: %s\n", options[1][4]);
+                        if (options[1][4][0] != '1') { // If choose to install OS X
+                            printf("Method\t\t: %s\n", options[1][6]);
+                            if (options[1][6][0] != 'R'){ // Show mac version, if not RawImage
+                                printf("Mac Version\t: %s\n", options[1][5]);
                             }else{ // if RawImage, show Image path
-                                printf("Raw Image Dir   : %s\n", arg_values[10]);
+                                printf("Raw Image Dir   : %s\n", options[1][10]);
                             }
-                            if (arg_values[7][0] != '1') { // If not exclude Clover
+                            if (options[1][7][0] != '1') { // If not exclude Clover
                                 printf(
                                        "MBR Patch\t: %s\n"
                                        "Kernel Dir\t: %s\n"
-                                       , arg_values[8], arg_values[9]);
+                                       , options[1][8], options[1][9]);
                                        
                             }
                         }
@@ -206,261 +244,86 @@ int main(int args, char *argv[]){
                 printf("Are you sure? (y/n): ");
                 scanf("%c", &confirm);
                 if (confirm == 'y') {
-                    return run_installer(argv[1]);
-                }else return -1;
-            } else if (strcmp(argv[1], "mount_efi") == 0) { // Mount EFI
+                    return run_installer(VERB);
+                }else return show_error("Installation Aborted.");
+            } else if (strcmp(VERB, "mount_efi") == 0) { // Mount EFI
                 if (args == 2) { // Default procedure
-                    return mount_efi("", 0);
+                    return mount_efi(EMPTY, FALSE);
                 }else if (args == 3) { // show -mountPoint help | help | interactive way
-                    if (strcmp(argv[2], "-help") == 0) return show_help(10);
-                    else if (strcmp(argv[2], "-mountPoint") == 0) return show_help(11);
-                    else if (strcmp(argv[2], "-i") == 0) return mount_efi("", 1);
-                    else return show_help(10);
+                    if (strcmp(ARG_ONE, "-help") == 0) return show_help(MOUNT_EFI);
+                    else if (strcmp(ARG_ONE, "-mountPoint") == 0) return show_help(MOUNT_POINT);
+                    else if (strcmp(ARG_ONE, "-i") == 0) return mount_efi(EMPTY, TRUE);
+                    else return show_help(MOUNT_EFI);
                 }else if (args == 4){ // mount EFI with -mountPoint | interactive | -mountPoint help
-                    if (strcmp(argv[2], "-mountPoint") == 0) return mount_efi(argv[3], 0);
-                    else if (strcmp(argv[2], "-i") == 0 && strcmp(argv[3], "-mountPoint") == 0) return show_help(11);
-                    else return show_help(11);
+                    if (strcmp(ARG_ONE, "-mountPoint") == 0) return mount_efi(argv[3], FALSE);
+                    else if (strcmp(ARG_ONE, "-i") == 0 && strcmp(argv[3], "-mountPoint") == 0) return show_help(MOUNT_POINT);
+                    else return show_help(MOUNT_POINT);
                 }else if (args == 5) {
-                    if (strcmp(argv[2], "-i") == 0 && strcmp(argv[3], "-mountPoint") == 0) return mount_efi(argv[4], 1);
-                    else return show_help(11);
-                }else return show_help(10);
-            } else if (strcmp(argv[1], "extract_dsdt") == 0) { // Extract DSDT/SSDTs
+                    if (strcmp(ARG_ONE, "-i") == 0 && strcmp(argv[3], "-mountPoint") == 0) return mount_efi(argv[4], TRUE);
+                    else return show_help(MOUNT_POINT);
+                }else return show_help(MOUNT_EFI);
+            } else if (strcmp(VERB, "extract_dsdt") == 0) { // Extract DSDT/SSDTs
                 if (args == 3) { // default | help
-                    if (strcmp(argv[2], "-help") == 0) return show_help(4);
+                    if (strcmp(ARG_ONE, "-help") == 0) return show_help(EXTRACT_DSDT);
                     else{
-                        if (argv[2][0] == '-'){
-                            show_help(4);
-                            return -1;
-                        }
-                        else return extract_dsdt(argv[2], 0);
+                        if (ARG_ONE[0] == '-'){
+                            show_help(EXTRACT_DSDT);
+                            return EXIT_FAILURE;
+                        }else return extract_dsdt(ARG_ONE, FALSE);
                     }
                 }else if (args == 4){ // also disassemble | extract
-                    if (strcmp(argv[2], "-disassemble") == 0) return extract_dsdt(argv[3], 1);
-                    else return show_help(4);
-                }else return show_help(4);
-            } else if (strcmp(argv[1], "kext") == 0) { // Kext Admin
+                    if (strcmp(ARG_ONE, "-disassemble") == 0) return extract_dsdt(argv[3], TRUE);
+                    else return show_help(EXTRACT_DSDT);
+                }else return show_help(EXTRACT_DSDT);
+            } else if (strcmp(VERB, "kext") == 0) { // Kext Admin
                 if (args == 3) { // help | -install/-uninstall help | -rebuildCache | -fixPermission
-                    // if (strcmp(argv[2], "-help") == 0) return show_help(12);
-                    if (strcmp(argv[2], "-install") == 0) return show_help(13);
-                    else if (strcmp(argv[2], "-uninstall") == 0) return show_help(13);
-                    else if (strcmp(argv[2], "-rebuildCache") == 0) return kext_admin('r', "");
-                    else if (strcmp(argv[2], "-fixPermissions") == 0) return kext_admin('f', "");
-                    else return show_help(12);
+                    if (strcmp(ARG_ONE, "-help") == 0) return show_help(KEXT);
+                    else if (strcmp(ARG_ONE, "-install") == 0) return show_help(INSTALL_KEXT);
+                    else if (strcmp(ARG_ONE, "-uninstall") == 0) return show_help(UNINSTALL_KEXT);
+                    else if (strcmp(ARG_ONE, "-rebuildCache") == 0) return kext_admin(REBUILD_CACHE, EMPTY);
+                    else if (strcmp(ARG_ONE, "-fixPermissions") == 0) return kext_admin(FIX_PERMISSIONS, EMPTY);
+                    else return show_help(KEXT);
                 }else if (args == 4){ // -install | -uninstall
-                    if (strcmp(argv[2], "-install") == 0) return kext_admin('i', argv[3]);
-                    else if (strcmp(argv[2], "-uninstall") == 0) return kext_admin('u', argv[3]);
-                    else return show_help(12);
-                }else show_help(12);
-            } else if (strcmp(argv[1], "recovery") == 0) { // Recovery
+                    if (strcmp(ARG_ONE, "-install") == 0) return kext_admin(INSTALL_KEXT, argv[3]);
+                    else if (strcmp(ARG_ONE, "-uninstall") == 0) return kext_admin(UNINSTALL_KEXT, argv[3]);
+                    else return show_help(KEXT);
+                }else show_help(KEXT);
+            } else if (strcmp(VERB, "recovery") == 0) { // Recovery
                 if (args == 3) { // help | -removeKext/-replaceKernel help | -copyClover | -listUnsigned | -installOnUSB | -disableHibernation | -fixAppleId
-                    // if (strcmp(argv[2], "-help") == 0) return show_help(14);
-                    if (strcmp(argv[2], "-removeKext") == 0) return show_help(15);
-                    else if (strcmp(argv[2], "-replaceKernel") == 0) return show_help(15);
-                    else if (strcmp(argv[2], "-copyClover") == 0) return recovery('c', "");
-                    else if (strcmp(argv[2], "-listUnsigned") == 0) return recovery('l', "");
-                    else if (strcmp(argv[2], "-installOnUSB") == 0) return recovery('i', "");
-                    else if (strcmp(argv[2], "-disableHibernation") == 0) return recovery('d', "");
-                    else if (strcmp(argv[2], "-init") == 0) return recovery('m', "");
-                    else if (strcmp(argv[2], "-fixAppleId") == 0) return recovery('f', "");
-                    else return show_help(14);
+                    if (strcmp(ARG_ONE, "-help") == 0) return show_help(RECOVERY);
+                    else if (strcmp(ARG_ONE, "-removeKext") == 0) return show_help(REMOVE_KEXT);
+                    else if (strcmp(ARG_ONE, "-replaceKernel") == 0) return show_help(REPLACE_KERNEL_RECOVERY);
+                    else if (strcmp(ARG_ONE, "-copyClover") == 0) return recovery(COPY_CLOVER, EMPTY);
+                    else if (strcmp(ARG_ONE, "-listUnsigned") == 0) return recovery(LIST_UNSIGNED, EMPTY);
+                    else if (strcmp(ARG_ONE, "-installOnUSB") == 0) return recovery(INSTALL_ON_USB, EMPTY);
+                    else if (strcmp(ARG_ONE, "-disableHibernation") == 0) return recovery(DISABLE_HIBERNATION, EMPTY);
+                    else if (strcmp(ARG_ONE, "-init") == 0) return recovery(INIT, EMPTY);
+                    else if (strcmp(ARG_ONE, "-fixAppleId") == 0) return recovery(FIX_APPLE_ID, EMPTY);
+                    else return show_help(RECOVERY);
                 }else if (args == 4){ // -install | -uninstall
-                    if (strcmp(argv[2], "-removeKext") == 0) return recovery('u', argv[3]);
-                    else if (strcmp(argv[2], "-replaceKernel") == 0) return recovery('r', argv[3]);
-                    else return show_help(14);
-                }else return show_help(14);
-            } else if (strcmp(argv[1], "version") == 0) {
+                    if (strcmp(ARG_ONE, "-removeKext") == 0) return recovery(REMOVE_KEXT, argv[3]);
+                    else if (strcmp(ARG_ONE, "-replaceKernel") == 0) return recovery(REPLACE_KERNEL_RECOVERY, argv[3]);
+                    else return show_help(RECOVERY);
+                }else return show_help(RECOVERY);
+            } else if (strcmp(VERB, "version") == 0) { // Version
                 printf("Version %s\n", version);
-                return 0;
-            } else return show_help(0);
+                return EXIT_SUCCESS;
+            } else return show_help(DEFAULT);
     }
-    return 0;
+    return EXIT_SUCCESS;
 }
 #pragma clang diagnostic pop
 
 
-// Checks whether the arguments are valid
+// Checks whether the argument is valid
 int check_arg(char arg_name[]){
-    for (int i=0; i<total_args; i++) {
-        if (strcmp(arg_name,arg_names[i]) == 0) {
-            return TRUE;
-        }
+    for (int i=0; i<(sizeof(options[0])/sizeof(int)); i++) {
+        if (strcmp(arg_name, options[0][i]) == 0) return TRUE;
     }
     return FALSE;
 }
 
-// Shows help
-int show_help(int class){ // class 1 = config, 2 = ethernet, 3 = usb/hdd, 4 = extract dsdt, 5 = os, 6 = method, 7 = Raw Image Src, 8 = replace kernel, 9 = mbr patch, 10 = mount_efi, 11 = mount point, 12 = kext, 13 = install/uninstall kext, 14 = recovery, 15 = remove kext/replace kernel
-    if (class == 0) { // default
-        printf(
-               "\e[1mMac OS Installation Helper\e[0m\n"
-               "2016 (c) Muntashir Akon\n\n"
-               "\e[4mUSAGE:\e[0m machelper <verb> [option] ...\n"
-               "\e[4mVERB:\e[0m\n"
-               "\t\e[1musb\e[0m\t\t\tCreate a bootable USB\n"
-               "\t\e[1mhdd\e[0m\t\t\tConfigure HDD/SSD\n"
-               "\t\e[1mmount_efi\e[0m\t\tMount EFI Partition\n"
-               "\t\e[1mkext\e[0m\t\t\tkext (Kernel Extension) Management\n"
-               "\t\e[1mextract_dsdt\e[0m\t\tExtracts DSDT/SSDTs\n"
-               "\t\e[1mrecovery\e[0m\t\tRecovery Options for machelper\n"
-               "\t\e[1mversion\e[0m\t\t\tShow the current machelper version\n"
-               "\e[4mNote:\e[0m Type -help after each <verb> to show help.\n"
-        );
-    }else if (class == 1){ // config
-        printf(
-               "\e[4mUSAGE:\e[0m machelper usb|hdd -config <name>\n"
-               "\e[4mNAME:\e[0m\n"
-               "\t\e[1mHD3000_1366x768\e[0m\t\tIntel HD3000 (1366x768)\n"
-               "\t\e[1mHD3000_1366x768_7series\e[0m\tIntel HD3000 (1366x768) 7series\n"
-               "\t\e[1mHD3000_1600x900\e[0m\t\tIntel HD3000 (1600x900)\n"
-               "\t\e[1mHD3000_1600x900_7series\e[0m\tIntel HD3000 (1600x900) 7series\n"
-               "\t\e[1mHD4000_1366x768\e[0m\t\tIntel HD4000 (1366x768)\n"
-               "\t\e[1mHD4000_1366x768_6series\e[0m\tIntel HD4000 (1366x768) 6series\n"
-               "\t\e[1mHD4000_1600x900\e[0m\t\tIntel HD4000 (1600x900)\n"
-               "\t\e[1mHD4000_1600x900_6series\e[0m\tIntel HD4000 (1600x900) 6series\n"
-               "\t\e[1mHD4600_4400_4200\e[0m\tIntel HD4600, 4400, 4200\n"
-               "\t\e[1mHD5000_5100_5200\e[0m\tIntel HD5000, 5100, 5200\n"
-               "\t\e[1mHD5600\e[0m\t\tIntel HD5600\n"
-               "\t\e[1mHD5300_5500_6000\e[0m\tIntel HD5300, 5500, 6000\n"
-               "\t\e[1mHD5600\e[0m\t\t\tIntel HD5600\n"
-               "\e[4mNOTE:\e[0m There are \e[1mtwo \e[4mDropTables\e[0m in the config.plist file. Use the alternate if needed with DropOEM and Generate equals true. (From my experience, Broadwell PCs often require the \e[1malternate DropTables\e[0m with \e[1mDropOEM=true\e[0m and \e[1mGenerate=true\e[0m.) It should be furthur noted that choosing a config that needs \e[1mCI Patch\e[0m, \e[1mFakePCIID\e[0m along with \e[1mIntel HD Graphics\e[0m will be installed at /EFI/CLOVER/kexts/Other/.\n"
-        );
-    }else if (class == 2){ // ethernet
-        printf(
-               "\e[4mUSAGE:\e[0m machelper usb|hdd -ethernet <name>\n"
-               "\e[4mNAME:\e[0m\n"
-               "\t\e[1mRealtekRTL8100\e[0m\t\tFor Realtek RTL8100, RTL8101E, RTL8102E,\n"
-               "\t\t\t\tRTL8103E, RTL8105E, RTL8106E, RTL8106EUS,\n"
-               "\t\t\t\tRTL8401E and RTL8402\n"
-               "\t\e[1mRealtekRTL8111\e[0m\t\tFor Realtek RTL8111x and RTL8168x\n"
-               "\t\e[1mIntelMausiEthernet\e[0m\tFor Intel 82578LM, 82578LC, 82578DM,\n"
-               "\t\t\t\t82578DC, 82579LM, 82579V, I217LM,\n"
-               "\t\t\t\tI217V, I218LM, I218V, I218LM2,\n"
-               "\t\t\t\tI218V2 and I218LM3\n"
-               "\t\e[1mAtherosE2200Ethernet\e[0m\tFor Atheros AR816x, AR817x,\n"
-               "\t\t\t\tKiller E220x and Killer 2400\n"
-               "\t\e[1mBroadcomBCM57xx\e[0m\t\tFor Broadcom BCM57xx\n"
-               "\t\e[1mAppleIntelE1000e\e[0m\tAppleIntel E1000e\n"
-               "\e[4mNOTE:\e[0m if you have got a kext for your ethernet, please send it to me.\n"
-        );
-    }else if (class == 3) { // usb/hdd
-        printf(
-               "\e[4mUSAGE:\e[0m machelper usb|hdd [option] ...\n"
-               "\e[4mOPTION:\e[0m\n"
-               "\t-config <name>\t\tChoose a laptop config.plist\n"
-               "\t-ethernet <name>\tChoose a ethernet kext\n"
-               "\t-help\t\t\tShow this help menu\n"
-               "\t-raid\t\t\tIf SATA is in RAID mode\n"
-               "\t-excludeOs\t\tExclude Mac OS installation (for USB only)\n"
-               "\t-os <name>\t\tChoose an OS (default: El Capitan)\n"
-               "\t-method <name>\t\tChoose a method (default: BaseBinaries Clone)\n"
-               "\t-src <source>\t\t(Only for RawImage Method) Image Source\n"
-               "\t-mbrPatch <path>\tPath to the folder where OSInstaller and\n"
-               "\t\t\t\tOSInstall.mpkg located\n"
-               "\t-replaceKernel <source>\tSource of the kernel to be replaced\n"
-               "\t-excludeClover\t\t(For real Mac) Exclude Clover Installation\n"
-               "\e[4mNote:\e[0m Keep the <name> blank to show help.\n"
-        );
-    }else if (class == 4){ // Extract DSDT/SSDTs
-        printf(
-               "\e[4mUSAGE:\e[0m machelper mount_efi [-disassemble|-help] <dest>\n"
-               "\t<dest>\t\t\tDestination to save DSDT/SSDTs\n"
-               "\t-disassemble\t\tDisassemble DSDT/SSDTs too\n"
-               "\t-help\t\t\tShow this help menu\n"
-               );
-    }else if (class == 5){ // Mac OS Version
-        printf(
-               "\e[4mUSAGE:\e[0m machelper usb|hdd -os <name>\n"
-               "\e[4mNAME:\e[0m\n"
-               "\t\e[1mMavericks\e[0m\t\tOS X Mavericks (10.9.x) Image\n"
-               "\t\e[1mYosemite\e[0m\t\tOS X Yosemite (10.10.x) Image\n"
-               "\t\e[1mEl Capitan\e[0m\t\tOS X El Capitan (10.11.x) Image [default]\n"
-        );
-    }else if (class == 6){ // method
-        printf("\e[4mUSAGE:\e[0m machelper usb|hdd -method <name>\n"
-               "\e[4mNAME:\e[0m\n"
-               "\t\e[1mBaseBinaries\e[0m\t\tBaseBinaries Clone (InstallESD) Method (Default)\n"
-               "\t\e[1mcreateinstallmedia\e[0m\tCreateInstallMedia Method (Creates Recovery Partition)\n"
-               "\t\e[1mRawImage\e[0m\t\tUse raw image specified by \e[1m-src <source>\e[0m\n"
-               "\t\t\t\tSupported extensions: img, iso, raw, <volume>\n"
-               "\e[4mNote:\e[0m RawImage Method is just a shortcut for BaseBinaries Clone Method. "
-               "That means, RawImage is just an image file containing the files that are extracted using "
-               "the BaseBinaries Clone Method. So, if you have 'Install OS X <OS X Name>.app', you should "
-               "follow the BaseBinaries Clone Method, instead of RawImage Method.\n"
-        );
-    }else if (class == 7){ // src for RawImage method
-        printf(
-               "\e[4mUSAGE:\e[0m machelper usb|hdd -method RawImage -src <source>\n"
-               "Here <source> is the path of the raw image \e[4malong with the kernel file\e[0m.\n"
-               );
-    }else if (class == 8){ // replace kernel
-        printf(
-               "\e[4mUSAGE:\e[0m machelper usb|hdd -replaceKernel <source>\n"
-               "Here <source> is the path of the kernel \e[4malong with the kernel file\e[0m.\n"
-        );
-    }else if (class == 9){ // mbr patch
-        printf(
-               "\e[4mUSAGE:\e[0m machelper usb|hdd -mbrPatch <path>\n"
-               "Here <path> is the destination (folder) where OSInstaller and\n"
-               "OSInstall.mpkg are located.\n"
-               "\e[4mNote:\e[0m Two files must be contained in the folder (<path>).\n"
-        );
-    }else if (class == 10){ // mount efi
-        printf(
-               "\e[4mUSAGE:\e[0m machelper mount_efi [-i|-help] [-mountPoint <path>]\n"
-               "\t-help\t\t\tShow this help menu\n"
-               "\t-i\t\t\tInteractive way of mounting EFI which allows\n"
-               "\t\t\t\tuser to select the EFI partition from a list.\n"
-               "\t-mountPoint <path>\tSpecify a mount point to mount the EFI\n"
-               "\t\t\t\tpartition of the HDD/SSD.\n"
-        );
-    }else if (class == 11){ // mount point
-        printf(
-               "\e[4mUSAGE:\e[0m machelper mount_efi [-i] [-mountPoint <path>]\n"
-               "Here <path> is the folder to be used as a mount point to mount the EFI.\n"
-               "\e[4mNote:\e[0m You must create that folder.\n"
-        );
-    }else if (class == 12){ // kext
-        printf(
-               "\e[4mUSAGE:\e[0m machelper kext <option>\n"
-               "\e[4mOPTION:\e[0m\n"
-               "\t-help\t\t\tShow this help menu\n"
-               "\t-install <source>\tInstall a kext, fix permissions & rebuil\n"
-               "\t-uninstall <source>\tUninstall a kext\n"
-               "\t-fixPermissions\t\tFix permissions of the Kexts at /S/L/E\n"
-               "\t-rebuildCache\t\tRebuild Kernel Cache\n"
-        );
-    }else if (class == 13){ // mount point
-        printf(
-               "\e[4mUSAGE:\e[0m machelper kext -install|-uninstall <source>\n"
-               "Here <source> is the kext file to be installed at /S/L/E.\n"
-        );
-    }else if (class == 14){ // recovery
-        printf(
-               "\e[4mUSAGE:\e[0m machelper recovery <option>\n"
-               "\e[4mOPTION:\e[0m\n"
-               "\t-copyClover\t\tCopy Clover EFI from USB to HDD/SSD\n"
-               "\t-disableHibernation\tDisable Hibernation to fix sleep problems\n"
-               "\t-fixAppleId\t\tReset network preferences to fix Apple ID\n"
-               "\t-help\t\t\tShow this help menu\n"
-               "\t-init\t\t\tChecks and mounts root when booting with \n"
-               "\t\t\t\tSingle User Mode. This is essentially a shortcut\n"
-               "\t\t\t\tfor `fsck -y` and `mount -uw /`\n"
-               "\t-installOnUSB\t\tInstall 'machelper' on USB (only for \n"
-               "\t\t\t\tBaseBinaries Clone Method)\n"
-               "\t-listUnsigned\t\tList unsigned kext(s)\n"
-               "\t-removeKext <source>\tUninstall/Remove a kext (backup to ~/Desktop)\n"
-               "\t-replaceKernel <source>\tReplace Kernel (backup to ~/Desktop)\n"
-               );
-    }else if (class == 15){ // installOnUSB/removeKext
-        printf(
-               "\e[4mUSAGE:\e[0m machelper recovery -installOnUSB|-removeKext <source>\n"
-               "Here <source> is the kext file to be installed at /S/L/E.\n"
-               );
-    }
-    return 0;
-}
-
-// Run Shell Scripts to create bootable USB/configure HDD
+/// Create bootable USB/configure HDD
 int run_installer(char type[]){ // type = usb|hdd
     char _os_name[15]; // Could be Mavericks, Yosemite, El Capitan
     char _device_name[100] = "install_osx"; // Default USB device name is install_osx
@@ -471,42 +334,42 @@ int run_installer(char type[]){ // type = usb|hdd
     char confirm[2] = "y";
     char root[] = "/tmp/helper"; // Temporary directory root
     char cmd[300];
-    char installation_type;
-    char method;
+    int installation_type;
+    int method;
     if (strcmp(type, "hdd") == 0){
-        installation_type = 'h';
+        installation_type = HDD;
     } else{
-        installation_type = 'u';
+        installation_type = USB;
     }
-    switch (arg_values[6][0]) { // Set method
+    switch (options[1][6][0]) { // Set method
         case 'c': // createinstallmedia
-            method = 'c';
+            method = CREATEINSTALLMEDIA;
             break;
         case 'R': // RawImage
-            method = 'r';
+            method = RAW_IMG;
             break;
         default: // Default: BaseBinaries
-            method = 'b';
+            method = BASE_BINARIES_CLONE;
             break;
     }
     strcat(_choice_file, type); // Add type usb|hdd
     strcat(_choice_file, ".xml"); // Add extension .xml
-    strcpy(_os_name, arg_values[5]); // Set _os_name
-    
+    strcpy(_os_name, options[1][5]); // Set _os_name
+
     printf("\e[4mNote:\e[0m Sometimes 'sudo' permission is required.\n");
-    
+
     /* === USB Formatting === */
     // First warn user if trying to do it from single user mode
-    // list disks to let user know the identifier of the USB
+    // List disks to let user know the identifier of the USB
     if (system("diskutil list") != 0) return show_error("You cannot do this operation in single user mode!");
     // Unmount ESP
     sprintf(cmd, "/Volumes/%s", _efi_name);
     if (access(cmd, F_OK) == 0) {
-        sprintf(cmd, "diskutil unmount %s", _efi_name); system(cmd);
+        sprintf(cmd, "diskutil unmount force %s", _efi_name); system(cmd);
     }
     // Skip USB formatting, if type is hdd as well as -excludeOs is given
-    if (installation_type == 'u' && arg_values[4][0] != '1') {
-        printf("Enter the name of the IDENTIFIER of your chosen USB drive to format, be careful, data you loose shall not be recoverable (e.g. disk1): ");
+    if (installation_type == USB && options[1][4][0] != '1') {
+        printf("Enter the name of the \e[1mIDENTIFIER\e[0m of your chosen USB drive to format, be careful, data you loose shall not be recoverable (e.g. disk1): ");
         scanf("%s", _identifier);
         if (strcmp(_identifier, "disk0") == 0) { // if IDENTIFIER can't be disk0
             return show_error("Installation location can't be HDD/SSD!");
@@ -516,11 +379,11 @@ int run_installer(char type[]){ // type = usb|hdd
         if (confirm[0] == 'y') {
             // Format USB and create partition
             sprintf(cmd, "diskutil partitionDisk /dev/%s 1 GPT HFS+J \"%s\" R", _identifier, _device_name);
-            system(cmd);
+            if (system(cmd) != 0) return show_error("Formating USB failed!");
             printf("Format successful.\n");
         }else return show_error("Installation Aborted.");
     }else{ // Set _device_name
-        printf("Enter the NAME of the partition to install Clover (i.e. 'Macintosh HD'): ");
+        printf("Enter the \e[1mNAME\e[0m of the partition to install Clover (e.g. Macintosh HD): ");
         scanf("%s", _device_name);
         // Check if the partition is really existed
         // TODO: need to make it better
@@ -530,8 +393,10 @@ int run_installer(char type[]){ // type = usb|hdd
         scanf("%s", confirm);
         if (confirm[0] != 'y') return show_error("Installation Aborted.");
     }
-    
+
     /* === Clover Installation === */
+    // Ignore Installation on -excludeClover
+    if (options[1][7][0] == '1') goto p;
     // Create root dir
     sprintf(cmd, "mkdir %s", root);
     system(cmd);
@@ -540,7 +405,12 @@ int run_installer(char type[]){ // type = usb|hdd
     sprintf(cmd, "%s/%s.zip", root, _clover_file);
     if (access(cmd, F_OK) != 0) {
         sprintf(cmd, "curl -L http://downloads.sourceforge.net/project/cloverefiboot/Installer/%s.zip > %s/%s.zip", _clover_file, root, _clover_file);
-        system(cmd);
+        // Warn user if it doesn't have an Internet connection
+        // Also, delete `root` folder too
+        if (system(cmd) !=0){
+            sprintf(cmd, "rm -R %s", root); system(cmd);
+            return show_error("Downloading Clover failed! Do you have an Internet connection?");
+        }
     }
     // Download Choice file, if not already
     sprintf(cmd, "%s/%s", root, _choice_file);
@@ -550,13 +420,19 @@ int run_installer(char type[]){ // type = usb|hdd
     }
     printf("Unzipping...\n");
     // Unzip Clover
+    // Also checks if Clover is a valid zip file
+    // If not, throw an error saying to try again
+    // Also deletes the `root` folder
     sprintf(cmd, "unzip -d %s %s/%s.zip", root, root,_clover_file);
-    system(cmd);
+    if (system(cmd) !=0){
+        sprintf(cmd, "rm -R %s", root); system(cmd);
+        return show_error("Clover installation failed! Please try again.");
+    }
     printf("Installing Clover EFI into %s\n", _device_name);
     // Install Clover
-    sprintf(cmd, "sudo installer -pkg %s/%s.pkg -target \"/Volumes/%s\" -applyChoiceChangesXML %s/%s", root, _clover_file, _device_name, root, _choice_file);
-    if (system(cmd) != 0) return show_error("Clover Installation failed!");
-    
+    //sprintf(cmd, "sudo installer -pkg %s/%s.pkg -target \"/Volumes/%s\" -applyChoiceChangesXML %s/%s", root, _clover_file, _device_name, root, _choice_file);
+    //if (system(cmd) != 0) return show_error("Clover Installation failed!");
+
     /* === Clover Configuration === */
     printf("Configuring Clover...\nDownloading essential files...\n");
     /* === Download Essential Files === */
@@ -585,27 +461,23 @@ int run_installer(char type[]){ // type = usb|hdd
         sprintf(cmd, "curl -L %s/GenericUSBXHCI.kext.zip > %s/GenericUSBXHCI.kext.zip", kext_url, root);
         system(cmd);
     }
-    
+
     /* === Unzip & Configure === */
     // Delete Everything of /ESP/EFI/CLOVER/kexts/ except Other
     system("rm -R /Volumes/ESP/EFI/CLOVER/kexts/10*");
     char kext_location[100];
     sprintf(kext_location, "/Volumes/%s/EFI/CLOVER/kexts/Other/", _efi_name);
     printf("Unzipping & copying...\n");
-    // Unzip & copy files
-    sprintf(cmd, "unzip -d %s %s/FakeSMC.kext.zip", kext_location, root);
-    system(cmd);
-    sprintf(cmd, "unzip -d %s %s/VoodooPS2Controller.kext.zip", kext_location, root);
-    system(cmd);
-    sprintf(cmd, "unzip -d %s %s/GenericUSBXHCI.kext.zip", kext_location, root);
-    system(cmd);
+    /* Unzip & copy files */
+    sprintf(cmd, "unzip -d %s %s/FakeSMC.kext.zip", kext_location, root); system(cmd);
+    sprintf(cmd, "unzip -d %s %s/VoodooPS2Controller.kext.zip", kext_location, root); system(cmd);
+    sprintf(cmd, "unzip -d %s %s/GenericUSBXHCI.kext.zip", kext_location, root); system(cmd);
     // Copy HFSPlus.efi
-    sprintf(cmd, "cp %s/HFSPlus.efi /Volumes/%s/EFI/CLOVER/drivers64UEFI/", root, _efi_name);
-    system(cmd);
-    
+    sprintf(cmd, "cp %s/HFSPlus.efi /Volumes/%s/EFI/CLOVER/drivers64UEFI/", root, _efi_name); system(cmd);
+
     /* === Special Tasks === */
     printf("Doing some special business...\n");
-    if (arg_values[3][0] == '1') { // RAID Mode
+    if (options[1][3][0] == '1') { // RAID Mode
         // HPRAIDInjector.kext.zip
         sprintf(cmd, "%s/HPRAIDInjector.kext.zip", root);
         if (access(cmd, F_OK) != 0) {
@@ -615,17 +487,15 @@ int run_installer(char type[]){ // type = usb|hdd
         // Unzip & copy
         sprintf(cmd, "unzip -d %s %s/HPRAIDInjector.kext.zip", kext_location, root); system(cmd);
     }
-    if (strcmp(arg_values[0], "") != 0) { // Config
+    if (strcmp(options[1][0], EMPTY) != 0){ // Config
         // Download config.plist
         sprintf(cmd, "%s/config.plist", root);
-        if (access(cmd,F_OK) != 0) {
-            sprintf(cmd, "curl -L https://github.com/MuntashirAkon/Mac-OS-Installation-Helper/raw/master/CloverLaptopConfig/cofig_%s.plist > %s/config.plist", arg_values[0], root);
-            system(cmd);
+        if (access(cmd, F_OK) != 0){
+            sprintf(cmd, "curl -L https://github.com/MuntashirAkon/Mac-OS-Installation-Helper/raw/master/CloverLaptopConfig/cofig_%s.plist > %s/config.plist", options[1][0], root); system(cmd);
         }
-        sprintf("cp %s/config.plist /Volumes/%s/EFI/CLOVER/config.plist", root, _device_name);
-        system(cmd);
+        sprintf(cmd, "cp %s/config.plist /Volumes/%s/EFI/CLOVER/config.plist", root, _efi_name); system(cmd);
         // Enable CI in HD4200/4400/4600/5600
-        if (strcmp(arg_values[0], "HD4600_4400_4200") == 0 || strcmp(arg_values[0], "HD5600") == 0) {
+        if (strcmp(options[1][0], "HD4600_4400_4200") == 0 || strcmp(options[1][0], "HD5600") == 0){
             // Download FakePCIID, if not already
             sprintf(cmd, "%s/FakePCIID.kext.zip", root);
             if (access(cmd, F_OK) != 0) {
@@ -643,9 +513,9 @@ int run_installer(char type[]){ // type = usb|hdd
             sprintf(cmd, "unzip -d %s %s/FakePCIID_Intel_HD_Graphics.kext.zip", kext_location, root); system(cmd);
         }
     }
-    if (strcmp(arg_values[1], "") != 0) { // Ethernet
+    if (strcmp(options[1][1], EMPTY) != 0) { // Ethernet
         // For BroadcomBCM57xx, FakePCIID and FakePCIID_BCM57XX_as_BCM57765 have to be used
-        if (strcmp(arg_values[1], "BroadcomBCM57xx") == 0) {
+        if (strcmp(options[1][1], "BroadcomBCM57xx") == 0) {
             // Download FakePCIID, if not already
             sprintf(cmd, "%s/FakePCIID.kext.zip", root);
             if (access(cmd, F_OK) != 0) {
@@ -663,22 +533,22 @@ int run_installer(char type[]){ // type = usb|hdd
             sprintf(cmd, "unzip -d %s %s/FakePCIID_BCM57XX_as_BCM57765.kext.zip", kext_location, root);
             system(cmd);
         }else{ // Download the exact kext
-            sprintf(cmd, "%s/%s.kext.zip", root, arg_values[1]);
+            sprintf(cmd, "%s/%s.kext.zip", root, options[1][1]);
             if (access(cmd, F_OK) != 0) { // Download if not already
-                sprintf("curl -L %s/%s.kext.zip > %s/%s.kext.zip", kext_url, arg_values[1], root, arg_values[1]); system(cmd);
+                sprintf("curl -L %s/%s.kext.zip > %s/%s.kext.zip", kext_url, options[1][1], root, options[1][1]); system(cmd);
             }
             // Unzip & copy
-            sprintf(cmd, "unzip -d %s %s/%s.kext.zip", kext_location, root, arg_values[1]); system(cmd);
+            sprintf(cmd, "unzip -d %s %s/%s.kext.zip", kext_location, root, options[1][1]); system(cmd);
         }
     }
-    
     printf("Done.\n");
 
     /* === Mac OS Installation === */
+    p: // Bypass Clover
     // Install Mac OS into USB only if -excludeOs is not given
-    if (installation_type == 'u' && arg_values[4][0] == '0') {
+    if (installation_type == USB && options[1][4][0] == '0') {
         printf("Now Installing %s...\n", _os_name);
-        if (method == 'c') {
+        if (method == CREATEINSTALLMEDIA) {
             /* === createinstallmedia Method === */
             // Results in recovery partition
             // Only applies for Mavericks, Yosemite & El Capitan
@@ -688,19 +558,19 @@ int run_installer(char type[]){ // type = usb|hdd
             // Rename
             sprintf(cmd, "diskutil rename \"Install OS X %s\" \"%s\"", _os_name, _device_name);
             system(cmd);
-        }else if (method == 'r'){
+        }else if (method == RAW_IMG){
             /* === RawImage Method === */
             // Doesn't create a recovery partition
-            // Note: probably BaseBinaries method in a raw file with kernel & /Extra folder
+            // Note: BaseBinaries Clone method in a raw file with kernel & /Extra folder
             // Supported file types: raw, iso, img
             // Need no version specification
             printf("Restoring Raw Image to the USB...\n");
-            if (access(arg_values[10], F_OK) == 0) {
+            if (access(options[1][10], F_OK) == 0) {
                 // Unmount disk first
                 sprintf(cmd, "diskutil unmountDisk /dev/%s", _identifier); system(cmd);
                 // Restore the Raw Image to the usb
                 printf("Note: Press \e[1mctrl+t\e[0m to show status.\n");
-                sprintf(cmd, "sudo dd if=\"%s\" of=/dev/r%s bs=1m", arg_values[10], _identifier);
+                sprintf(cmd, "sudo dd if=\"%s\" of=/dev/r%s bs=1m", options[1][10], _identifier);
                 if (system(cmd) != 0) return show_error("Installation Failed!");
                 // Rename
                 sprintf(cmd, "diskutil rename \"OS X Base System\" \"%s\"", _device_name); system(cmd);
@@ -729,11 +599,11 @@ int run_installer(char type[]){ // type = usb|hdd
             // Remove Packages symlink
             sprintf(cmd, "rm \"/Volumes/%s/System/Installation/Packages\"", _device_name);
             system(cmd);
-            printf("5...");
+            printf("5... ");
             // Copy Packages as folder
             sprintf(cmd, "cp -a /tmp/install_esd/Packages \"/Volumes/%s/System/Installation\"", _device_name);
             system(cmd);
-            printf("60...");
+            printf("60... ");
             // Copy BaseSystem.dmg
             sprintf(cmd, "cp -a /tmp/install_esd/BaseSystem.dmg /tmp/install_esd/BaseSystem.chunklist \"/Volumes/%s\"", _device_name);
             system(cmd);
@@ -742,27 +612,29 @@ int run_installer(char type[]){ // type = usb|hdd
             system("hdiutil detach /tmp/install_esd");
             // Remove tmp dir
             system("rmdir /tmp/install_esd");
-            // Create kernel
-            // Don't waste time for copying kernel if -replaceKernel is given
-            if (strcmp(arg_values[8], "") == 0 || (strcmp(arg_values[8], "") != 0 && access(arg_values[8], F_OK) != 0)) {
-                // Copy kernel
-                // TODO: need to be implemented
+            /*
+             * Extract kernel
+             * Don't waste time for copying kernel if -replaceKernel is given
+             * TODO: need to be implemented later perhaps with an option -extractKernel
+            if (strcmp(options[1][8], EMPTY) == 0 || (strcmp(options[1][8], EMPTY) != 0 && access(options[1][8], F_OK) != 0)) {
+                // extract & copy kernel
             }
-            
+            */
+
         }
-        if (method == 'b' || method == 'r') { // MBR patch and kernel replace
+        if (method == BASE_BINARIES_CLONE || method == RAW_IMG) { // MBR patch and kernel replace
             /* === Special (for BaseBinaries and/or RawImage) === */
             // MBR patch
-            if (strcmp(arg_values[9], "") != 0 && access(arg_values[9], F_OK) == 0){
+            if (strcmp(options[1][9], EMPTY) != 0 && access(options[1][9], F_OK) == 0){
                 printf("Applying MBR patch... ");
-                sprintf(cmd, "cp \"%s/OSInstall.mpkg\" \"/Volumes/%s/System/Installation/Packages/OSInstall.mpkg\"", arg_values[9], _device_name);
+                sprintf(cmd, "cp \"%s/OSInstall.mpkg\" \"/Volumes/%s/System/Installation/Packages/OSInstall.mpkg\"", options[1][9], _device_name);
                 system(cmd);
                 printf("...\n");
-                sprintf(cmd, "cp \"%s/OSInstaller\" \"/Volumes/%s/System/Library/PrivateFrameworks/OSInstaller.framework/Versions/A/OSInstaller\"", arg_values[9], _device_name);
+                sprintf(cmd, "cp \"%s/OSInstaller\" \"/Volumes/%s/System/Library/PrivateFrameworks/OSInstaller.framework/Versions/A/OSInstaller\"", options[1][9], _device_name);
                 system(cmd);
             }
             // Replace Kernel
-            if (strcmp(arg_values[8], "") != 0 && access(arg_values[8], F_OK) == 0) {
+            if (strcmp(options[1][8], EMPTY) != 0 && access(options[1][8], F_OK) == 0) {
                 printf("Replacing kernel...\n");
                 // Backup kernel first
                 sprintf(cmd, "/Volumes/%s/System/Library/Kernels/kernel", _device_name);
@@ -772,7 +644,7 @@ int run_installer(char type[]){ // type = usb|hdd
                     sprintf(cmd, "mkdir \"/Volumes/%s/System/Library/Kernels/\"", _device_name); system(cmd);
                 }
                 // Replace/Add kernel
-                sprintf(cmd, "cp \"%s\" \"/Volumes/%s/System/Library/Kernels/kernel\"", arg_values[8], _device_name);
+                sprintf(cmd, "cp \"%s\" \"/Volumes/%s/System/Library/Kernels/kernel\"", options[1][8], _device_name);
             }
         }
         printf("Done.\n");
@@ -782,7 +654,7 @@ int run_installer(char type[]){ // type = usb|hdd
            "NB: If you did not use a config.plist, you should configure your own config.plist "
            "based on your hardwares. Otherwise your USB/HDD may not work. "
            "The EFI partition should be mounted at /Volumes/ESP/ (Shown as EFI).\n", type);
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 // Mounts EFI partition
@@ -796,14 +668,14 @@ int mount_efi(char mount_point[], int interactive){
         scanf("%s", _identifier);
     }
     // Mount disk
-    if (strcmp(mount_point, "") == 0) sprintf(cmd, "diskutil mount %s", _identifier);
+    if (strcmp(mount_point, EMPTY) == 0) sprintf(cmd, "diskutil mount %s", _identifier);
     else{
         sprintf(cmd, "diskutil unmount force %s", _identifier); system(cmd);
         sprintf(cmd, "diskutil mount -mountPoint %s %s", mount_point, _identifier);
     }
     // First warn user if trying to do it from single user mode
     if (system(cmd) != 0) return show_error("You cannot do this operation in single user mode!");
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 // Extract and/or disassemble DSDT/SSDTs
@@ -853,18 +725,16 @@ int extract_dsdt(char destination[], int disassemble){
         printf("Done.\n");
     }
     printf("DSDT/SSDTs Location: %s\n", destination);
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 // Kext administration
-int kext_admin(char class, char src[]){
-    // class 'i' = install, 'u' = uninstall, 'f' = fix permission, 'r' = rebuild cache
-    // For class 'i'|'u': src is the *source* of the kext
-    // And for class 'f': src is the *name* of the kext (this is for internal use only)
+int kext_admin(unsigned int id, char src[]){
+    // For id INSTALL_KEXT|UNINSTALL_KEXT: src is the *source* of the kext
+    // And for id FIX_PERMISSIONS: src is the *name* of the kext (this is for internal use only)
     char cmd[300];
-    switch (class) {
-        case 'i':
-            // Install kext
+    switch (id) {
+        case INSTALL_KEXT:
             if (access(src, F_OK) == 0) {
                 char kext_name[100];
                 int kext_count = 0;
@@ -898,10 +768,10 @@ int kext_admin(char class, char src[]){
                 sprintf(cmd, "sudo cp -R \"%s\" \"/System/Library/Extensions/%s\"", src, kext_name);
                 if (system(cmd) != 0) return show_error("Installing kext failed!");
                 // Fix Permission, Rebuild Cache
-                kext_admin('f', kext_name);
+                kext_admin(FIX_PERMISSIONS, kext_name);
             }else return show_error("Inaccessible or invalid source.");
             break;
-        case 'u':
+        case UNINSTALL_KEXT:
             // Uninstall the kext
             if (access(src, F_OK) == 0) {
                 printf("Removing the kext...\n");
@@ -909,10 +779,10 @@ int kext_admin(char class, char src[]){
                 sprintf(cmd, "sudo mv \"%s\" ~/Desktop/", src);
                 system(cmd);
                 // Rebuild Cache
-                kext_admin('r', "");
+                kext_admin(REBUILD_CACHE, EMPTY);
             }else return show_error("Inaccessible or invalid source.");
             break;
-        case 'f':
+        case FIX_PERMISSIONS:
             // Fix permission
             printf("Fixing permissions...\n");
             if (strcmp(src, "") != 0) { // If kext_name is set, only fix permission of the kext
@@ -922,9 +792,9 @@ int kext_admin(char class, char src[]){
             }
             if (system(cmd) != 0) return show_error("Fixing permission failed!");
             // Also, rebuid cache
-            kext_admin('r', "");
+            kext_admin(REBUILD_CACHE, EMPTY);
             break;
-        case 'r':
+        case REBUILD_CACHE:
             // Rebuild cache
             printf("Rebuilding Cache...\n");
             if (system("sudo touch /S*/L*/Extensions && sudo kextcache -Boot -U /") != 0) return show_error("Rebuilding Kernel Cache failed!");
@@ -933,24 +803,20 @@ int kext_admin(char class, char src[]){
         default:
             return show_error("Invalid Argument(s).");
     }
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 // Recovery tools
-int recovery(char class, char src[]){
-    // class 'c' = copyClover, 'u' = remove kext, 'l' = list unsigned, 'i' = installOnUSB, 'r' = replace kernel, 'd' = disable hibernation
-    // 'f' = fix Apple Id
+int recovery(unsigned int id, char src[]){
     char cmd[300];
     char _identifier[15];
     char location[100];
-    char confirm[2]; // Solve wired problem related to scanf()
-    switch (class) {
-        case 'u':
-            // Remove/uninstall kext
-            kext_admin('u', src);
+    char confirm[2]; // Solve weired problem related to scanf()
+    switch (id) {
+        case REMOVE_KEXT:
+            kext_admin(UNINSTALL_KEXT, src);
             break;
-        case 'f':
-            // Fix Apple ID
+        case FIX_APPLE_ID:
             // Resets network interfaces
             printf("Do you have a working Ethernet/Wifi? (y/n): ");
             scanf("%s", confirm);
@@ -966,15 +832,15 @@ int recovery(char class, char src[]){
             else
                 printf("You choose not to restart now.\n");
             break;
-        case 'm':
+        case INIT:
             // Initialize & mount
             // This is needed when booting into single user mode
             if (system("fsck -fy && mount -uw /") != 0) return show_error("Init failed! This usually occurs because of the user being not logged in single user mode.");
-        case 'l':
+        case LIST_UNSIGNED:
             // List Unsigned kext(s)
             if (system("sudo touch /S*/L*/Extensions && sudo kextcache -Boot -U /") != 0) return show_error("Operation failed!");
             break;
-        case 'i':
+        case INSTALL_ON_USB:
             // Install 'machelper' on USB
             // First warn user if trying to do it from single user mode
             if (system("diskutil list") != 0) return show_error("You cannot do this operation in single user mode!");
@@ -997,25 +863,25 @@ int recovery(char class, char src[]){
             sprintf(cmd, "diskutil unmount %s", _identifier); system(cmd);
             system("rmdir /tmp/usb_helper");
             break;
-        case 'r':
+        case REPLACE_KERNEL_RECOVERY:
             // Replace Kernel
             if (access(src, F_OK)) {
                 // Backup current kernel
                 printf("Backing up kernel...\n");
                 system("cp /System/Library/Kernels/kernel ~/Desktop/kernel_backup");
-                if (system(cmd) == 0) printf("Kernel is backed up at ~/Desktop/\n");;
+                if (system(cmd) == 0) printf("Kernel is backed up at ~/Desktop/\n");
                 // Replace Kext
                 printf("Replacing kernel...\n");
                 sprintf(cmd, "sudo cp %s /System/Library/Kernels/kernel", src);
                 if (system(cmd) != 0) return show_error("Replacing kernel failed!");
             }else return show_error("Unresolved source.");
             break;
-        case 'd':
+        case DISABLE_HIBERNATION:
             // Disable Hibernation
             printf("Disabling Hibernation...\n");
             if(system("sudo pmset -a hibernatemode 0 && sudo rm /var/vm/sleepimage && sudo mkdir /var/vm/sleepimage") != 0) return show_error("Disabling hibernation failed!");
             break;
-        case 'c':
+        case COPY_CLOVER:
             // Copy Clover from USB to HDD/SSD
             // First warn user if trying to do it from single user mode
             if (system("diskutil list") != 0) return show_error("You cannot do this operation in single user mode!");
@@ -1056,11 +922,11 @@ int recovery(char class, char src[]){
             return show_error("Invalid Argument(s).");
     }
     printf("Done.\n");
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 // Generate error message: something failed!
 int show_error(char subject[]){
     printf("machelper: %s\n", subject);
-    return -1;
+    return EXIT_FAILURE;
 }
