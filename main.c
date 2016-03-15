@@ -24,7 +24,7 @@
  * Known Bugs: none so far
  *
  * Author: Muntashir Al-Islam <muntashir.islam96@gmail.com>
- * Version: 0.9.0beta
+ * Version: 1.0.0
  * Date: 21 feb, 2016
  * Copyright: 2016 (c) All rights reserved.
  * License: MIT License
@@ -61,7 +61,7 @@ int recovery(unsigned int id, char src[]);
 int show_error(char subject[]); // Always return FAILURE
 
 // Global Variable Declarations
-char version[15] = "0.9.0beta";
+char version[15] = "1.0.0";
 // char verbs[7][15] = {"usb", "hdd", "mount_efi", "kext", "extract_dsdt", "recovery", "version"}
 
 /*

@@ -1,5 +1,8 @@
 # machelper
-A command line tool for Macintosh as well as Hackintosh to help OSx86 users. 
+A command line tool for Macintosh as well as Hackintosh to help OSx86 users.
+
+Builds:
+- Master [![Build Status](https://travis-ci.org/MuntashirAkon/machelper.svg?branch=master)](https://travis-ci.org/MuntashirAkon/machelper)
 
 # Features
 - Create bootable USB for Hackintosh and well as Macintosh
