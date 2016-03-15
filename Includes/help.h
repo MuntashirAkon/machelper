@@ -16,7 +16,7 @@
 int show_help(unsigned int id); // Always return EXIT_SUCCESS
 
 int show_help(unsigned int id){
-    switch (id){
+    switch (id) {
         case USB:
         case HDD:
             printf("\e[4mUSAGE:\e[0m machelper usb|hdd [option] ...\n"

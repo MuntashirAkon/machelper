@@ -330,10 +330,10 @@ int run_installer(char type[]){ // type = usb|hdd
     char _efi_name[] = "ESP"; // EFI partition mount point, default is ESP
     char _identifier[15] = "disk1"; // For USB only, default IDENTIFIER is disk1
     char _choice_file[16] = "choices."; // Choice file for Clover (format: choices.[type].[extension])
-    char _clover_file[] = "Clover_v2.3k_r3330";
+    char _clover_file[] = "Clover";
     char confirm[2] = "y";
     char root[] = "/tmp/helper"; // Temporary directory root
-    char cmd[300];
+    char cmd[400];
     int installation_type;
     int method;
     if (strcmp(type, "hdd") == 0){
@@ -400,11 +400,11 @@ int run_installer(char type[]){ // type = usb|hdd
     // Create root dir
     sprintf(cmd, "mkdir %s", root);
     system(cmd);
-    printf("Helper will now downloaded Clover EFI.\n");
+    printf("Helper will now download Clover EFI.\n");
     // Download Clover, if not already
     sprintf(cmd, "%s/%s.zip", root, _clover_file);
     if (access(cmd, F_OK) != 0) {
-        sprintf(cmd, "curl -L http://downloads.sourceforge.net/project/cloverefiboot/Installer/%s.zip > %s/%s.zip", _clover_file, root, _clover_file);
+        sprintf(cmd, "curl -#L https://sourceforge.net/projects/cloverefiboot/files/latest/download > %s/%s.zip", root, _clover_file);
         // Warn user if it doesn't have an Internet connection
         // Also, delete `root` folder too
         if (system(cmd) !=0){
@@ -415,7 +415,7 @@ int run_installer(char type[]){ // type = usb|hdd
     // Download Choice file, if not already
     sprintf(cmd, "%s/%s", root, _choice_file);
     if (access(cmd, F_OK) != 0) {
-        sprintf(cmd, "curl -L https://raw.githubusercontent.com/MuntashirAkon/Mac-OS-Installation-Helper/master/CloverInstallationChoices/%s > %s/%s", _choice_file, root, _choice_file);
+        sprintf(cmd, "curl -sL https://raw.githubusercontent.com/MuntashirAkon/Mac-OS-Installation-Helper/master/CloverInstallationChoices/%s > %s/%s", _choice_file, root, _choice_file);
         system(cmd);
     }
     printf("Unzipping...\n");
@@ -423,15 +423,15 @@ int run_installer(char type[]){ // type = usb|hdd
     // Also checks if Clover is a valid zip file
     // If not, throw an error saying to try again
     // Also deletes the `root` folder
-    sprintf(cmd, "unzip -d %s %s/%s.zip", root, root,_clover_file);
+    sprintf(cmd, "unzip -oqq -d %s %s/%s.zip", root, root,_clover_file);
     if (system(cmd) !=0){
         sprintf(cmd, "rm -R %s", root); system(cmd);
         return show_error("Clover installation failed! Please try again.");
     }
-    printf("Installing Clover EFI into %s\n", _device_name);
+    printf("Installing Clover EFI into %s...\n", _device_name);
     // Install Clover
-    //sprintf(cmd, "sudo installer -pkg %s/%s.pkg -target \"/Volumes/%s\" -applyChoiceChangesXML %s/%s", root, _clover_file, _device_name, root, _choice_file);
-    //if (system(cmd) != 0) return show_error("Clover Installation failed!");
+    sprintf(cmd, "sudo installer -pkg %s/%s*.pkg -target \"/Volumes/%s\" -applyChoiceChangesXML %s/%s", root, _clover_file, _device_name, root, _choice_file);
+    if (system(cmd) != 0) return show_error("Clover Installation failed!");
 
     /* === Clover Configuration === */
     printf("Configuring Clover...\nDownloading essential files...\n");
@@ -440,25 +440,25 @@ int run_installer(char type[]){ // type = usb|hdd
     // HFSPlus.efi
     sprintf(cmd, "%s/HFSPlus.efi", root);
     if (access(cmd, F_OK) != 0) {
-        sprintf(cmd, "curl -L https://github.com/JrCs/CloverGrowerPro/raw/master/Files/HFSPlus/X64/HFSPlus.efi > %s/HFSPlus.efi", root);
+        sprintf(cmd, "curl -sL https://github.com/JrCs/CloverGrowerPro/raw/master/Files/HFSPlus/X64/HFSPlus.efi > %s/HFSPlus.efi", root);
         system(cmd);
     }
     // FakeSMC.kext.zip
     sprintf(cmd, "%s/FakeSMC.kext.zip", root);
     if (access(cmd, F_OK) != 0) {
-        sprintf(cmd, "curl -L %s/FakeSMC.kext.zip > %s/FakeSMC.kext.zip", kext_url, root);
+        sprintf(cmd, "curl -sL %s/FakeSMC.kext.zip > %s/FakeSMC.kext.zip", kext_url, root);
         system(cmd);
     }
     // VoodooPS2Controller.kext.zip
     sprintf(cmd, "%s/VoodooPS2Controller.kext.zip", root);
     if (access(cmd, F_OK) != 0) {
-        sprintf(cmd, "curl -L %s/VoodooPS2Controller.kext.zip > %s/VoodooPS2Controller.kext.zip", kext_url, root);
+        sprintf(cmd, "curl -sL %s/VoodooPS2Controller.kext.zip > %s/VoodooPS2Controller.kext.zip", kext_url, root);
         system(cmd);
     }
     // GenericUSBXHCI.kext.zip
     sprintf(cmd, "%s/GenericUSBXHCI.kext.zip", root);
     if (access(cmd, F_OK) != 0) {
-        sprintf(cmd, "curl -L %s/GenericUSBXHCI.kext.zip > %s/GenericUSBXHCI.kext.zip", kext_url, root);
+        sprintf(cmd, "curl -sL %s/GenericUSBXHCI.kext.zip > %s/GenericUSBXHCI.kext.zip", kext_url, root);
         system(cmd);
     }
 
@@ -469,9 +469,9 @@ int run_installer(char type[]){ // type = usb|hdd
     sprintf(kext_location, "/Volumes/%s/EFI/CLOVER/kexts/Other/", _efi_name);
     printf("Unzipping & copying...\n");
     /* Unzip & copy files */
-    sprintf(cmd, "unzip -d %s %s/FakeSMC.kext.zip", kext_location, root); system(cmd);
-    sprintf(cmd, "unzip -d %s %s/VoodooPS2Controller.kext.zip", kext_location, root); system(cmd);
-    sprintf(cmd, "unzip -d %s %s/GenericUSBXHCI.kext.zip", kext_location, root); system(cmd);
+    sprintf(cmd, "unzip -oqq -d %s %s/FakeSMC.kext.zip", kext_location, root); system(cmd);
+    sprintf(cmd, "unzip -oqq -d %s %s/VoodooPS2Controller.kext.zip", kext_location, root); system(cmd);
+    sprintf(cmd, "unzip -oqq -d %s %s/GenericUSBXHCI.kext.zip", kext_location, root); system(cmd);
     // Copy HFSPlus.efi
     sprintf(cmd, "cp %s/HFSPlus.efi /Volumes/%s/EFI/CLOVER/drivers64UEFI/", root, _efi_name); system(cmd);
 
@@ -481,17 +481,17 @@ int run_installer(char type[]){ // type = usb|hdd
         // HPRAIDInjector.kext.zip
         sprintf(cmd, "%s/HPRAIDInjector.kext.zip", root);
         if (access(cmd, F_OK) != 0) {
-            sprintf(cmd, "curl -L %s/HPRAIDInjector.kext.zip > %s/HPRAIDInjector.kext.zip", kext_url, root);
+            sprintf(cmd, "curl -sL %s/HPRAIDInjector.kext.zip > %s/HPRAIDInjector.kext.zip", kext_url, root);
             system(cmd);
         }
         // Unzip & copy
-        sprintf(cmd, "unzip -d %s %s/HPRAIDInjector.kext.zip", kext_location, root); system(cmd);
+        sprintf(cmd, "unzip -oqq -d %s %s/HPRAIDInjector.kext.zip", kext_location, root); system(cmd);
     }
     if (strcmp(options[1][0], EMPTY) != 0){ // Config
         // Download config.plist
         sprintf(cmd, "%s/config.plist", root);
         if (access(cmd, F_OK) != 0){
-            sprintf(cmd, "curl -L https://github.com/MuntashirAkon/Mac-OS-Installation-Helper/raw/master/CloverLaptopConfig/cofig_%s.plist > %s/config.plist", options[1][0], root); system(cmd);
+            sprintf(cmd, "curl -sL https://github.com/MuntashirAkon/Mac-OS-Installation-Helper/raw/master/CloverLaptopConfig/cofig_%s.plist > %s/config.plist", options[1][0], root); system(cmd);
         }
         sprintf(cmd, "cp %s/config.plist /Volumes/%s/EFI/CLOVER/config.plist", root, _efi_name); system(cmd);
         // Enable CI in HD4200/4400/4600/5600
@@ -499,18 +499,18 @@ int run_installer(char type[]){ // type = usb|hdd
             // Download FakePCIID, if not already
             sprintf(cmd, "%s/FakePCIID.kext.zip", root);
             if (access(cmd, F_OK) != 0) {
-                sprintf(cmd, "curl -L %s/FakePCIID.kext.zip > %s/FakePCIID.kext.zip", kext_url, root);
+                sprintf(cmd, "curl -sL %s/FakePCIID.kext.zip > %s/FakePCIID.kext.zip", kext_url, root);
                 system(cmd);
             }
             // Download FakePCIID_Intel_HD_Graphics, if not already
             sprintf(cmd, "%s/FakePCIID_Intel_HD_Graphics.kext.zip", root);
             if (access(cmd, F_OK) != 0) {
-                sprintf(cmd, "curl -L %s/FakePCIID_Intel_HD_Graphics.kext.zip > %s/FakePCIID_Intel_HD_Graphics.kext.zip", kext_url, root);
+                sprintf(cmd, "curl -sL %s/FakePCIID_Intel_HD_Graphics.kext.zip > %s/FakePCIID_Intel_HD_Graphics.kext.zip", kext_url, root);
                 system(cmd);
             }
             // Unzip & copy
-            sprintf(cmd, "unzip -d %s %s/FakePCIID.kext.zip", kext_location, root); system(cmd);
-            sprintf(cmd, "unzip -d %s %s/FakePCIID_Intel_HD_Graphics.kext.zip", kext_location, root); system(cmd);
+            sprintf(cmd, "unzip -oqq -d %s %s/FakePCIID.kext.zip", kext_location, root); system(cmd);
+            sprintf(cmd, "unzip -oqq -d %s %s/FakePCIID_Intel_HD_Graphics.kext.zip", kext_location, root); system(cmd);
         }
     }
     if (strcmp(options[1][1], EMPTY) != 0) { // Ethernet
@@ -519,26 +519,26 @@ int run_installer(char type[]){ // type = usb|hdd
             // Download FakePCIID, if not already
             sprintf(cmd, "%s/FakePCIID.kext.zip", root);
             if (access(cmd, F_OK) != 0) {
-                sprintf(cmd, "curl -L %s/FakePCIID.kext.zip > %s/FakePCIID.kext.zip", kext_url, root);
+                sprintf(cmd, "curl -sL %s/FakePCIID.kext.zip > %s/FakePCIID.kext.zip", kext_url, root);
                 system(cmd);
             }
             // Download FakePCIID_BCM57XX_as_BCM57765, if not already
             sprintf(cmd, "%s/FakePCIID_BCM57XX_as_BCM57765.kext.zip", root);
             if (access(cmd, F_OK) != 0) {
-                sprintf(cmd, "curl -L %s/FakePCIID_BCM57XX_as_BCM57765.kext.zip > %s/FakePCIID_BCM57XX_as_BCM57765.kext.zip", kext_url, root); system(cmd);
+                sprintf(cmd, "curl -sL %s/FakePCIID_BCM57XX_as_BCM57765.kext.zip > %s/FakePCIID_BCM57XX_as_BCM57765.kext.zip", kext_url, root); system(cmd);
             }
             // Unzip & copy
-            sprintf(cmd, "unzip -d %s %s/FakePCIID.kext.zip", kext_location, root);
+            sprintf(cmd, "unzip -oqq -d %s %s/FakePCIID.kext.zip", kext_location, root);
             system(cmd);
-            sprintf(cmd, "unzip -d %s %s/FakePCIID_BCM57XX_as_BCM57765.kext.zip", kext_location, root);
+            sprintf(cmd, "unzip -oqq -d %s %s/FakePCIID_BCM57XX_as_BCM57765.kext.zip", kext_location, root);
             system(cmd);
         }else{ // Download the exact kext
             sprintf(cmd, "%s/%s.kext.zip", root, options[1][1]);
             if (access(cmd, F_OK) != 0) { // Download if not already
-                sprintf("curl -L %s/%s.kext.zip > %s/%s.kext.zip", kext_url, options[1][1], root, options[1][1]); system(cmd);
+                sprintf(cmd, "curl -sL %s/%s.kext.zip > %s/%s.kext.zip", kext_url, options[1][1], root, options[1][1]);system(cmd);
             }
             // Unzip & copy
-            sprintf(cmd, "unzip -d %s %s/%s.kext.zip", kext_location, root, options[1][1]); system(cmd);
+            sprintf(cmd, "unzip -oqq -d %s %s/%s.kext.zip", kext_location, root, options[1][1]); system(cmd);
         }
     }
     printf("Done.\n");
@@ -579,7 +579,7 @@ int run_installer(char type[]){ // type = usb|hdd
                 // Eject the disk
                 sprintf(cmd, "diskutil eject /dev/%s", _identifier);
             }else return show_error("Invalid source. Try again.\n");
-        }else{ // method = 'b'
+        }else{ // method = BASE_BINARIES_CLONE
             /* === BaseBinaries Clone Method === */
             // Doesn't create a recovery partition
             // Not recommend for laptops
@@ -688,7 +688,7 @@ int extract_dsdt(char destination[], int disassemble){
     // Download patchmatic.zip
     sprintf(cmd, "%s/patchmatic.zip", root);
     if (access(cmd, F_OK) != 0) {
-        sprintf(cmd, "curl -L https://bitbucket.org/RehabMan/os-x-maciasl-patchmatic/downloads/RehabMan-patchmatic-2015-0107.zip > %s/patchmatic.zip", root);
+        sprintf(cmd, "curl -sL https://bitbucket.org/RehabMan/os-x-maciasl-patchmatic/downloads/RehabMan-patchmatic-2015-0107.zip > %s/patchmatic.zip", root);
         system(cmd);
     }
     // Extract patchmatic.zip
@@ -697,7 +697,7 @@ int extract_dsdt(char destination[], int disassemble){
     if (disassemble) {
         sprintf(cmd, "%s/iasl.zip", root); system(cmd);
         if (access(cmd, F_OK) != 0) {
-            sprintf(cmd, "curl -L https://bitbucket.org/RehabMan/acpica/downloads/iasl.zip > %s/iasl.zip", root); system(cmd);
+            sprintf(cmd, "curl -sL https://bitbucket.org/RehabMan/acpica/downloads/iasl.zip > %s/iasl.zip", root); system(cmd);
         }
         // extract iasl.zip
         sprintf(cmd, "unzip %s/iasl.zip -d %s", root, destination); system(cmd);
