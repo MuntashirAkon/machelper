@@ -1,8 +1,7 @@
 # machelper
 A command line tool for Macintosh as well as Hackintosh to help OSx86 users.
 
-Builds:
-- Master [![Build Status](https://travis-ci.org/MuntashirAkon/machelper.svg?branch=master)](https://travis-ci.org/MuntashirAkon/machelper)
+Build Status [![Build Status](https://travis-ci.org/MuntashirAkon/machelper.svg?branch=master)](https://travis-ci.org/MuntashirAkon/machelper)
 
 # Features
 - Create bootable USB for Hackintosh and well as Macintosh
@@ -19,7 +18,7 @@ Builds:
   - Kext installation as well as maintenance, and so on.
 
 # Binaries
-Not available here right now. But you can download from [here](http://muntashir.bplaced.com/machelper_0.9.0beta_osx.zip).
+Latest Binary can be found [here](https://github.com/MuntashirAkon/machelper/releases/latest)
 
 # Contribution & Feature Request
 You are absolutely welcome to contribute and/or request for features.
