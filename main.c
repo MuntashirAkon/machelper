@@ -493,7 +493,7 @@ int run_installer(char type[]){ // type = usb|hdd
         // Download config.plist
         sprintf(cmd, "%s/config.plist", root);
         if (access(cmd, F_OK) != 0){
-            sprintf(cmd, "curl -sL https://github.com/MuntashirAkon/Mac-OS-Installation-Helper/raw/master/CloverLaptopConfig/cofig_%s.plist > %s/config.plist", options[1][0], root); system(cmd);
+            sprintf(cmd, "curl -sL https://github.com/MuntashirAkon/Mac-OS-Installation-Helper/raw/master/CloverLaptopConfig/config_%s.plist > %s/config.plist", options[1][0], root); system(cmd);
         }
         sprintf(cmd, "cp %s/config.plist /Volumes/%s/EFI/CLOVER/config.plist", root, _efi_name); system(cmd);
         // Enable CI in HD4200/4400/4600/5600
