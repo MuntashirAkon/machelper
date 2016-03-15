@@ -111,6 +111,7 @@ char configs[12][30] = {"HD3000_1366x768", "HD3000_1366x768_7series", "HD3000_16
 #pragma ide diagnostic ignored "OCDFAInspection"
 int main(int args, char *argv[]){
     char confirm;
+    int i, j;
     switch (args) {
         case 1:
             return show_help(DEFAULT);
@@ -119,13 +120,13 @@ int main(int args, char *argv[]){
                 if (args == 2) {
                     printf("You did not choose to use any config.plist or ethernet. ");
                 } else {
-                    for (int i=2; i<args; ) {
+                    for (i=2; i<args; ) {
                         if (check_arg(argv[i]) == TRUE) {
                             if (strcmp(argv[i], options[0][2]) == 0) { // help
                                 return show_help(USB); // Also HDD
                             } else if (strcmp(argv[i], options[0][0]) == 0) { // config
                                 if (args > i+1) {
-                                    for (int j=0; j<(sizeof(configs)/sizeof(int)); j++) {
+                                    for (j=0; j<(sizeof(configs)/sizeof(int)); j++) {
                                         if (strcmp(configs[j], argv[i+1]) == 0) {
                                             strcpy(options[1][0], argv[i+1]);
                                         }
@@ -136,7 +137,7 @@ int main(int args, char *argv[]){
                                 }
                             } else if (strcmp(argv[i], options[0][1]) == 0) { // ethernet
                                 if (args > i+1) {
-                                    for (int j=0; j<(sizeof(ethernets)/sizeof(int)); j++) {
+                                    for (j=0; j<(sizeof(ethernets)/sizeof(int)); j++) {
                                         if (strcmp(ethernets[j], argv[i+1]) == 0) {
                                             strcpy(options[1][1], argv[i+1]);
                                         }
@@ -147,7 +148,7 @@ int main(int args, char *argv[]){
                                 }
                             } else if (strcmp(argv[i], options[0][5]) == 0) { // os
                                 if (args > i+1) {
-                                    for (int j=0; j<(sizeof(os_names)/sizeof(int)); j++) {
+                                    for (j=0; j<(sizeof(os_names)/sizeof(int)); j++) {
                                         if (strcmp(os_names[j], argv[i+1]) == 0) {
                                             strcpy(options[1][5], argv[i+1]);
                                         }
@@ -158,7 +159,7 @@ int main(int args, char *argv[]){
                                 }
                             } else if (strcmp(argv[i], options[0][6]) == 0) { // method
                                 if (args > i+1) {
-                                    for (int j=0; j<(sizeof(methods)/sizeof(int)); j++) {
+                                    for (j=0; j<(sizeof(methods)/sizeof(int)); j++) {
                                         if (strcmp(methods[j], argv[i+1]) == 0) {
                                             strcpy(options[1][6], argv[i+1]);
                                         }
@@ -317,7 +318,8 @@ int main(int args, char *argv[]){
 
 // Checks whether the argument is valid
 int check_arg(char arg_name[]){
-    for (int i=0; i<(sizeof(options[0])/sizeof(int)); i++) {
+    int i;
+    for (i=0; i<(sizeof(options[0])/sizeof(int)); i++) {
         if (strcmp(arg_name, options[0][i]) == 0) return TRUE;
     }
     return FALSE;
