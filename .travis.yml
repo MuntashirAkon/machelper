@@ -5,6 +5,15 @@ compiler: gcc
 script:
   - gcc -o machelper main.c
   - ./machelper version
+  - zip -X machelper.zip machelper
+
+deploy:
+  provider: releases
+  api_key: "3a3696656dca9b3d3e7ee12c543d26ffa4871e06"
+  file: "machelper.zip"
+  skip_cleanup: true
+  on:
+    tags: true
 
 notifications:
   email: false
