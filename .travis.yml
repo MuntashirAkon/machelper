@@ -9,7 +9,7 @@ script:
 
 deploy:
   provider: releases
-  api_key: "3a3696656dca9b3d3e7ee12c543d26ffa4871e06"
+  api_key: "7d2b17e0d5f3511a42cba4f83a71717ed22bcf2e"
   file: "machelper.zip"
   skip_cleanup: true
   on:
