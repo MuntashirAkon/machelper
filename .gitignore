@@ -33,3 +33,11 @@
 
 # Project files
 .idea/
+test
+*.c
+*.txt
+miscellany
+manage_kext
+installer
+info.muntashir.machelper.hackupdater.plist
+download
