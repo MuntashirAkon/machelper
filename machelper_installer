@@ -1,0 +1,11 @@
+#!usr/bin/php
+<?php
+define('ROOT', '/usr/local/machelper');
+
+// Create Root
+if(file_exists(ROOT)) passthru('sudo rm -Rf ' . ROOT);
+passthru('sudo mkdir /usr/local/machelper');
+// Copy files
+passthru('sudo cp -R ./machelper ./Includes ./Libraries '. ROOT);
+// TODO: Add to bash_profile
+//passthru('echo ');

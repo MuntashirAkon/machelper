@@ -1,36 +1,46 @@
 # machelper
 A command line tool for Macintosh as well as Hackintosh to help OSx86 users.
 
-Build Status [![Build Status](https://travis-ci.org/MuntashirAkon/machelper.svg?branch=master)](https://travis-ci.org/MuntashirAkon/machelper)
+## Features
 
-# Features
-- Create bootable USB for Hackintosh and well as Macintosh
-  - Apply MBR patch
-  - Replace kernel
-  - Special config.plist as well kext for Intel Laptops
-  - Ethernet setup
-  - Exclude Mac OS installation, install only Clover
-  - Exclude Clover installation (for native Mac)
-- Post installation help (allows you to either install bootloader or copy the bootloader from the USB to HDD/SSD)
-- Daily usage help
+(Run `machelper help` or just `machelper` for a list of options)
+- Create bootable USB for Hackintosh as well as Macintosh
+  - Apply MBR patch (From [OSx86.org](OSx86.org))
+  - Replace Kernel
+  - Special `config.plist` as well kext for Intel Laptops (*credit: RehabMan*)
+  - Ethernet kext (or just null ethernet)
+  - Exclude macOS installation, install only Clover
+  - Exclude Clover installation (for native Macs)
+- Post installation
+  - Install Clover bootloader
+  - Install necessary kexts at LE (/Library/Extensions) instead of CLOVER/kexts
+  - Copy the bootloader from the USB to HDD/SSD
+  - Extract and/or disassemble DSDT/SSDTs
+- Daily usage
   - Mount EFI partition
-  - Remove bad kext during single user mode
-  - Kext installation as well as maintenance, and so on.
+  - Install kext as well as fix permission and rebuild cache.
+  - Disable hibernation
+  
+The `v1.0.0-php` and later (the project was previously written in C, now in PHP)
+also come with the [`hackupdater`](https://github.com/MuntashirAkon/hackupdater) tool
+which run script(s) or re-install kext(s) after an update or an upgrade.
+Run `machelper hackupdater` for help or visit the [hackupdater repo](https://github.com/MuntashirAkon/hackupdater).
 
-# Binaries
-Latest Binary can be found [here](https://github.com/MuntashirAkon/machelper/releases/latest)
+## Binaries
+Latest Binary can be found [here](https://github.com/MuntashirAkon/machelper/releases/latest).
 
-# Contribution & Feature Request
+*Always use the latest binaries to get a better user experience.*
+
+## Installation
+Unzip the binary and run `machelper_installer` to install.
+
+To make sure that all is working fine, run `machelper version` from Terminal.
+
+## Contribution & Feature Request
 You are absolutely welcome to contribute and/or request for features.
 
-For contributors: the documentation is still on the progress
+## Credits
+RehabMan, Netkas, Slice, Allan, OSx86.org, InsanelyMac, CloverEFIBoot and Apple.
 
-# Special Thanks
-To RehabMan for his Clover guide, repositories and kexts.
-
-To olarila.com for their raw image idea.
-
-To osx86.org and insanelymac forum for MBR patch details.
-
-# License
+## License
 MIT License
