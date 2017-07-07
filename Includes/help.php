@@ -77,6 +77,30 @@ function show_help($verb = null){
                 "\e[4mNote:\e[0m run \e[1m".VERB_DSDT." ".DSDT_CHECK."\e[0m to see if the extraction of the original DSDT/SSDTs is possible as it's also used " .
                 "internally. This program cannot determine this if you're running Hackintosh in a Legacy drive.\n";
             break;
+        case HELP_HU:
+            $kext   = 'kext';
+            $script = 'script';
+            $source = 'source';
+            $name   = 'name';
+            $help   = /** @lang text */
+                "\e[4mUSAGE:\e[0m ".PROGRAM_NAME." ".VERB_HACKUPDATER."|".VERB_HU." [option] ...\n" .
+                "\e[4mOPTIONS:\e[0m\n" .
+                "\e[1m ".HU_INSTALL."\e[0m\tInstall and enable this tool (as LaunchAgent)\n" .
+                "\e[1m ".HU_UNINSTALL."\e[0m\tUninstall this tool (as LaunchAgent)\n" .
+                "\e[1m ".HU_ENABLE."\e[0m\t\tEnable this tool (as LaunchAgent)\n" .
+                "\e[1m ".HU_DISABLE."\e[0m\tDisable this tool (as LaunchAgent)\n" .
+                "\e[1m ".HU_UPDATE."\e[0m\t\tRun scripts and install kext if macOS is updated\n" .
+                "\e[1m ".HU_STATUS."\e[0m\t\tCheck if hackupdater is enabled.\n" .
+                "\e[1m ".HU_LIST."\e[0m \e[1m$kext\e[0m|\e[1m$script\e[0m\tList added kexts and scripts\n" .
+                "\e[1m ".HU_ADD."\e[0m \e[1m$kext\e[0m|\e[1m$script\e[0m \e[4m$source\e[0m \tAdd kexts and scripts\n" .
+                "\t\t\e[4m$source\e[0m is the kext or the script file\n" .
+                "\e[1m ".HU_REMOVE."\e[0m \e[1m$kext\e[0m|\e[1m$script\e[0m \e[4m$name\e[0m \tAdd kexts and scripts\n" .
+                "\t\t\e[4m$name\e[0m is the name of the kext or the script file\n" .
+                "\t\tA list of added kext or script can be found by running \e[1m".VERB_HU." ".HU_LIST."\e[0m\n" .
+                "\e[1m ".HU_HELP."\e[0m\tThis help menu\n" .
+                "\e[4mNote:\e[0m \e[1m".VERB_HACKUPDATER." ".HU_UPDATE."\e[0m shouldn't be run manually as it will be run " .
+                "automatically when macOS is updated or upgraded.\n";
+            break;
         default:
             $help = /** @lang text */
                 "\e[4mUSAGE:\e[0m ".PROGRAM_NAME." <verb> [option] ...\n" .

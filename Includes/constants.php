@@ -69,6 +69,7 @@ define('HU_INSTALL', 'install');
 define('HU_UNINSTALL', 'uninstall');
 define('HU_ENABLE', 'enable');
 define('HU_DISABLE', 'disable');
+define('HU_STATUS', 'status');
 define('HU_UPDATE', 'update');
 define('HU_LIST', 'list');
 define('HU_ADD', 'add');

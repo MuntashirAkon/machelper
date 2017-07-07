@@ -10,6 +10,7 @@
  */
 use MacHelper\DSDTExtractor;
 use MacHelper\EFIMounter;
+use MacHelper\HackUpdater;
 use MacHelper\KextManager;
 
 /**
@@ -65,6 +66,11 @@ switch ($verb){
     case VERB_DSDT:
         dsdt_handler();
         exit(EXIT_FAILURE); // This does nothing since exit() is already present in the above function
+    /* HackUpdater */
+    case VERB_HACKUPDATER:
+    case VERB_HU:
+        hu_handler();
+        exit(EXIT_FAILURE);
     /* Help */
     case VERB_HELP:
         show_help();
@@ -83,7 +89,156 @@ switch ($verb){
         exit(EXIT_FAILURE);
 }
 
+/**
+ * machelper hackupdater|hu ... command
+ */
+function hu_handler(){
+    global $argc, $argv;
+    if($argc > 2){
+        $sub_verb = $argv[2];
+        switch ($sub_verb){
+            case HU_INSTALL:
+                $status = (new HackUpdater())->install();
+                if($status){
+                    fputs(STDOUT, "Hackupdater was installed and enabled successfully!\n");
+                    exit(EXIT_SUCCESS);
+                }else{
+                    fputs(STDERR, "Hackupdater could not be installed! Try again.\n");
+                    exit(EXIT_FAILURE);
+                }
+            case HU_UNINSTALL:
+                $status = (new HackUpdater())->uninstall();
+                if($status){
+                    fputs(STDOUT, "Hackupdater was uninstalled successfully!\n");
+                    exit(EXIT_SUCCESS);
+                }else{
+                    fputs(STDERR, "Hackupdater could not be uninstalled! Try again.\n");
+                    exit(EXIT_FAILURE);
+                }
+            case HU_ENABLE:
+                $status = (new HackUpdater())->enable();
+                if($status){
+                    fputs(STDOUT, "Hackupdater was enabled successfully!\n");
+                    exit(EXIT_SUCCESS);
+                }else{
+                    fputs(STDERR, "Hackupdater could not be enabled! Be sure to install it first.\n");
+                    exit(EXIT_FAILURE);
+                }
+            case HU_DISABLE:
+                $status = (new HackUpdater())->disable();
+                if($status){
+                    fputs(STDOUT, "Hackupdater was disabled successfully!\n");
+                    exit(EXIT_SUCCESS);
+                }else{
+                    fputs(STDERR, "Hackupdater could not be disabled! Try again.\n");
+                    exit(EXIT_FAILURE);
+                }
+            case HU_UPDATE:
+                date_default_timezone_set('UTC');
+                fputs(STDOUT, "Running at " . ((new DateTime('NOW'))->format('Y/d/m H:i:s')) . "\n");
+                $hu = new HackUpdater();
+                if(!$hu->is_installed()){
+                    fputs(STDERR, "Hackupdater isn't installed. Run \e[1m".VERB_HU." ".HU_INSTALL."\e[0m to install hackupdater.\n");
+                    exit(EXIT_FAILURE);
+                }
+                if(!$hu->is_mac_os_updated()) {
+                    fputs(STDOUT, "macOS isn't updated or upgraded! Exiting...\n");
+                    exit(EXIT_FAILURE);
+                }else{
+                    fputs(STDOUT, "macOS is updated or upgraded! Running scripts and installing kexts...");
+                    $hu->update();
+                    fputs(STDOUT, "Done.\n");
+                    exit(EXIT_SUCCESS);
+                }
+            case HU_STATUS:
+                $hu = new HackUpdater();
+                if(!$hu->is_installed()){
+                    fputs(STDERR, "Hackupdater isn't installer.\n");
+                    exit(EXIT_FAILURE);
+                }
+                if($hu->is_enabled()){
+                    fputs(STDOUT, "Hackupdater is installed and enabled.\n");
+                }else{
+                    fputs(STDOUT, "Hackupdater is installed but not enabled.\n");
+                }
+                exit(EXIT_SUCCESS);
+            case HU_LIST:
+                if($argc == 4){
+                    $hu = new HackUpdater();
+                    if($hu->is_installed()){
+                        if(in_array($argv[3], ['kext', 'script'])){
+                            $list = $hu->list_($argv[3]);
+                            if(count($list) == 0){
+                                fputs(STDOUT, "No {$argv[3]} found.\n");
+                            }else{
+                                fputs(STDOUT, "List of added {$argv[3]}s:\n");
+                                foreach($list as $item)
+                                    fputs(STDOUT, " - " .$item . "\n");
+                            }
+                            exit(EXIT_SUCCESS);
+                        }
+                    }else{
+                        fputs(STDERR, "Hackupdater isn't installed. Run \e[1m".VERB_HU." ".HU_INSTALL."\e[0m to install hackupdater.\n");
+                        exit(EXIT_FAILURE);
+                    }
+                }
+                show_help(HELP_HU);
+                exit(EXIT_FAILURE);
+            case HU_ADD:
+                if($argc == 5){
+                    $hu = new HackUpdater();
+                    if($hu->is_installed()){
+                        if(in_array($argv[3], ['kext', 'script'])){
+                            $status = $hu->add($argv[3], $argv[4]);
+                            if($status){
+                                fputs(STDOUT, basename($argv[4]). " is added successfully!\n");
+                                exit(EXIT_SUCCESS);
+                            }else{
+                                fputs(STDOUT, "Add failed! Try again.\n");
+                                exit(EXIT_FAILURE);
+                            }
+                        }
+                    }else{
+                        fputs(STDERR, "Hackupdater isn't installed. Run \e[1m".VERB_HU." ".HU_INSTALL."\e[0m to install hackupdater.\n");
+                        exit(EXIT_FAILURE);
+                    }
+                }
+                show_help(HELP_HU);
+                exit(EXIT_FAILURE);
+            case HU_REMOVE:
+                if($argc == 5){
+                    $hu = new HackUpdater();
+                    if($hu->is_installed()){
+                        if(in_array($argv[3], ['kext', 'script'])){
+                            $status = $hu->remove($argv[3], $argv[4]);
+                            if($status){
+                                fputs(STDOUT, basename($argv[4]). " is removed successfully!\n");
+                                exit(EXIT_SUCCESS);
+                            }else{
+                                fputs(STDOUT, "Add failed! Try again.\n");
+                                exit(EXIT_FAILURE);
+                            }
+                        }
+                    }else{
+                        fputs(STDERR, "Hackupdater isn't installed. Run \e[1m".VERB_HU." ".HU_INSTALL."\e[0m to install hackupdater.\n");
+                        exit(EXIT_FAILURE);
+                    }
+                }
+                show_help(HELP_HU);
+                exit(EXIT_FAILURE);
+            default:
+                show_help(HELP_HU);
+                exit(EXIT_FAILURE);
+        }
+    }else{
+        show_help(HELP_HU);
+        exit(EXIT_FAILURE);
+    }
+}
 
+/**
+ * machelper dsdt ... command
+ */
 function dsdt_handler(){
     global $argc, $argv;
     if($argc > 2){

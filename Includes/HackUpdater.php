@@ -46,7 +46,7 @@ class HackUpdater
      * Creates a `LaunchAgent` at `/Library/LaunchDaemons`
      * and loads it.
      *
-     * @return bool `true` on success and `false` on failure
+     * @return bool true on success and false on failure
      */
     public function install(){
         if($this->is_installed()) return true;
@@ -63,8 +63,6 @@ class HackUpdater
         $root->addProperty(PListProperty::PL_STRING, "/Users/Shared/.hackupdater/logs/in.log", "StandardInPath");
         $root->addProperty(PListProperty::PL_STRING, "/Users/Shared/.hackupdater/logs/out.log", "StandardOutPath");
         $root->addProperty(PListProperty::PL_STRING, "/Users/Shared/.hackupdater/logs/error.log", "StandardErrorPath");
-        //print_r($plist->preview());
-//        if(file_exists(self::TMP_DIR) === false) mkdir(self::TMP_DIR);
         Essentials::createRoot();
         $plist_dir = Essentials::TMP_DIR."/".self::PLIST_FILE_NAME;
         $plist->save($plist_dir);
@@ -75,6 +73,23 @@ class HackUpdater
     }
 
     /**
+     * Removes HackUpdater
+     *
+     * Removes the `LaunchAgent` from `/Library/LaunchDaemons`
+     *
+     * @return bool true on success and false on failure
+     */
+    public function uninstall(){
+        $plist_file = self::LAUNCH_DAEMON_DIR."/".self::PLIST_FILE_NAME;
+        if($this->is_installed()){
+            $this->disable();
+            passthru('sudo rm '. $plist_file, $return);
+            if($return == Essentials::EXIT_SUCCESS) return true;
+        }
+        return false;
+    }
+
+    /**
      * Enables HackUpdater
      *
      * NOTE: HackUpdater is enabled by default upon installation
@@ -82,8 +97,9 @@ class HackUpdater
      * @return bool
      */
     public function enable(){
+        if($this->is_enabled()) return true;
         if($this->is_installed()){
-            exec("launchctl load -w ".self::LAUNCH_DAEMON_DIR."/".self::PLIST_FILE_NAME, $out, $return);
+            exec("sudo launchctl load -w ".self::LAUNCH_DAEMON_DIR."/".self::PLIST_FILE_NAME, $out, $return);
             if($return === Essentials::EXIT_SUCCESS) return true;
         }
         return false;
@@ -95,8 +111,9 @@ class HackUpdater
      * @return bool
      */
     public function disable(){
+        if(!$this->is_enabled()) return true;
         if($this->is_installed()){
-            exec("launchctl unload -w ".self::LAUNCH_DAEMON_DIR."/".self::PLIST_FILE_NAME, $out, $return);
+            exec("sudo launchctl unload -w ".self::LAUNCH_DAEMON_DIR."/".self::PLIST_FILE_NAME, $out, $return);
             if($return === Essentials::EXIT_SUCCESS) return true;
         }else return true; // Because the file isn't there already/not installed
         return false;
@@ -116,7 +133,53 @@ class HackUpdater
         }
     }
 
-    //
+    /**
+     * Lists kexts or scripts
+     *
+     * @param string $what 'kext' or 'script'
+     * @return array
+     */
+    public function list_($what){
+        $pwd = self::WORKING_DIR."/" . ($what == 'kext' ? self::KEXTS_DIR : self::SCRIPTS_DIR);
+        return (file_exists($pwd) ? Essentials::listDir($pwd) : []);
+    }
+
+    /**
+     * Adds a kext or script
+     *
+     * @param string $what 'kext' or 'script'
+     * @param string $file Full path to the kext or script file
+     * @return bool
+     */
+    public function add($what, $file){
+        $pwd = self::WORKING_DIR."/" . ($what == 'kext' ? self::KEXTS_DIR : self::SCRIPTS_DIR);
+        if(file_exists($pwd) === false) exec('sudo mkdir ' . $pwd);
+        if(file_exists($file)){
+            $filename = basename($file);
+            if($what == 'kext' AND !preg_match('/\.kext$/', $filename)) return false;
+            passthru('sudo cp -R "'.$file.'" "'.$pwd.'/'.$filename.'"', $return);
+            if($return == Essentials::EXIT_SUCCESS) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Removes a kext or script
+     *
+     * @param string $what 'kext' or 'script'
+     * @param string $name name of the kext or script
+     * @return bool
+     */
+    public function remove($what, $name){
+        $pwd = self::WORKING_DIR."/" . ($what == 'kext' ? self::KEXTS_DIR : self::SCRIPTS_DIR);
+        if(file_exists($pwd) === false) return false;
+        $file = $pwd . '/' . $name;
+        if(file_exists($file)){
+            passthru('sudo rm -R "'.$file.'"', $return);
+            if($return == Essentials::EXIT_SUCCESS) return true;
+        }
+        return false;
+    }
 
     /**
      * Checks whether HackUpdated is installed
@@ -126,9 +189,38 @@ class HackUpdater
      *
      * @return bool
      */
-    protected function is_installed(){
+    public function is_installed(){
         return (file_exists(self::LAUNCH_DAEMON_DIR."/".self::PLIST_FILE_NAME) !== false) ? true : false;
     }
+
+    /**
+     * Checks if the macOS is updated
+     *
+     * @return bool true on updated and false if otherwise
+     */
+    public function is_mac_os_updated(){
+        $plist_file = self::WORKING_DIR."/".self::INFO_PLIST;
+        $version    = [];
+        $plist      = new PListEditor();
+        $plist->readFile($plist_file);
+        $versionProperty = $plist->root()->getProperty("Version");
+        $version["product"] = $versionProperty->getProperty("product")->value();
+        $version["build"]   = $versionProperty->getProperty("build")->value();
+        return $version !== $this->get_mac_os_version();
+    }
+
+    /**
+     * Check if hackupdater is enabled
+     * @return bool
+     */
+    public function is_enabled(){
+        exec('sudo launchctl list | grep '. self::LABEL, $out);
+        return (count($out) == 1) ? true : false;
+    }
+
+    /*
+     * Protected functions
+     */
 
     /**
      * Get macOS version from sw_vers
@@ -150,6 +242,8 @@ class HackUpdater
     protected function set_mac_os_version(){
         $plist_file = self::WORKING_DIR."/".self::INFO_PLIST;
         $plist      = new PListEditor();
+        // Create working directory if not exists
+        if(file_exists(self::WORKING_DIR) === false) exec('sudo mkdir ' . self::WORKING_DIR);
         if(file_exists($plist_file) === false){
             $plist->create();
             $root = $plist->root(PListProperty::PL_DICT);
@@ -161,23 +255,7 @@ class HackUpdater
         $versionProperty = $root->addProperty(PListProperty::PL_DICT, null, "Version");
             $versionProperty->addProperty(PListProperty::PL_STRING, $version["product"], "product");
             $versionProperty->addProperty(PListProperty::PL_STRING, $version["build"], "build");
-        $plist->save($plist_file);
-    }
-
-    /**
-     * Checks if the macOS is updated
-     *
-     * @return bool true on updated and false if otherwise
-     */
-    protected function is_mac_os_updated(){
-        $plist_file = self::WORKING_DIR."/".self::INFO_PLIST;
-        $version    = [];
-        $plist      = new PListEditor();
-        $plist->readFile($plist_file);
-        $versionProperty = $plist->root()->getProperty("Version");
-            $version["product"] = $versionProperty->getProperty("product")->value();
-            $version["build"]   = $versionProperty->getProperty("build")->value();
-        return $version !== $this->get_mac_os_version();
+        $plist->save($plist_file, true);
     }
 
     /**
@@ -207,7 +285,6 @@ class HackUpdater
         $backup_dir = self::WORKING_DIR."/../Backups";
         $kext_installer = new KextManager($backup_dir);
         if(file_exists($pwd) === false) mkdir($pwd);
-//        exec("ls {$pwd}", $kexts);
         $kexts = Essentials::listDir($pwd, true);
         $total_kexts = count($kexts);
         if($total_kexts > 0){
