@@ -160,16 +160,20 @@ class DSDTExtractor
          * <code>
          * $patchmatic = (new BitBucketDownloader('RehabMan', 'os-x-maciasl-patchmatic'))->getFile('patchmatic', Essentials::TMP_DIR);
          * </code>
-         * But this isn't recommended as it's not supported.
+         * But this isn't recommended as it's not supported. You need to implement it yourself.
+         * Basically I modified the patchmatic myself to include a target with -extract.
+         * (I've made a pull request which if RehabMan accepts, the above
          */
         $patchmatic = Essentials::download('https://github.com/MuntashirAkon/OS-X-MaciASL-patchmatic/releases/download/patchmatic_modified/patchmatic.zip', Essentials::TMP_DIR . '/patchmatic.zip');
         // Check if the download was a success
         if($patchmatic === false) return self::EXTRACTION_IMPOSSIBLE;
         // Extract patchmatic.zip
         Essentials::unzip(Essentials::TMP_DIR . '/patchmatic.zip', Essentials::TMP_DIR);
-        passthru('chmod +x '. Essentials::TMP_DIR . '/patchmatic');
+        //Essentials::unzip($patchmatic['file'], Essentials::TMP_DIR); // When using BitBucketDownloader
         // Extract DSDT/SSDTs
         extraction:
+        // Make patchmatic executable
+        passthru('chmod +x '. Essentials::TMP_DIR . '/patchmatic');
         passthru(Essentials::TMP_DIR . '/patchmatic -extract "'.$target.'"', $return);
         // Success or failure?
         if($return != Essentials::EXIT_SUCCESS) return self::EXTRACTION_IMPOSSIBLE;
@@ -200,7 +204,7 @@ class DSDTExtractor
         // Check if the download was a success
         if($iasl === false) return false;
         /**
-         * FIXME AND NOTE: This way is more messy and weird than simply including an output directory at iasl
+         * TODO AND NOTE: This way is more messy and weird than simply including an output directory at iasl
          *  which is sadly not implemented by default in iasl by RehabMan, maybe in future I'll implement this.
          * Also, an additional mechanism is needed to be added to prevent stdout, but writing to the debug log.
          */
@@ -208,10 +212,12 @@ class DSDTExtractor
         Essentials::unzip($iasl['file'], Essentials::TMP_DIR);
         // Disassemble DSDT/SSDTs
         disassemble:
+        // Make iasl executable
+        passthru('chmod +x '. Essentials::TMP_DIR . '/iasl');
         // create refs.txt to get the most of iasl
         file_put_contents(Essentials::TMP_DIR . "/refs.txt", "External(_SB_.PCI0.PEG0.PEGP.SGPO, MethodObj, 2)\nExternal(_SB_.PCI0.LPCB.H_EC.ECWT, MethodObj, 2)\nExternal(_SB_.PCI0.LPCB.H_EC.ECRD, MethodObj, 1)\nExternal(_GPE.MMTB, MethodObj, 0)");
         // Disassemble
-        passthru(Essentials::TMP_DIR . '/iasl -da -dl -bf -fe ' . Essentials::TMP_DIR . "/refs.txt \"{$source}\"/*.aml", $return);
+        exec(Essentials::TMP_DIR . '/iasl -da -dl -bf -fe ' . Essentials::TMP_DIR . "/refs.txt \"{$source}\"/*.aml", $return);
         // Move if target != source
         if($target != $source AND $return == Essentials::EXIT_SUCCESS){
             exec("mv \"{$source}\"/*.dsl \"{$target}\"");

@@ -63,11 +63,25 @@ define('DSDT_DISASSEMBLE', 'disassemble');
 define('DSDT_HELP', 'help');
 
 /*
+ * Options for VERB_HACKUPDATER or VERB_HU
+ */
+define('HU_INSTALL', 'install');
+define('HU_UNINSTALL', 'uninstall');
+define('HU_ENABLE', 'enable');
+define('HU_DISABLE', 'disable');
+define('HU_UPDATE', 'update');
+define('HU_LIST', 'list');
+define('HU_ADD', 'add');
+define('HU_REMOVE', 'remove');
+define('HU_HELP', 'help');
+
+/*
  * Option for VERB_HELP
  */
 define('HELP_EFI', 1);
 define('HELP_KEXT', 2);
 define('HELP_DSDT', 3);
+define('HELP_HU', 4);
 
 // Old
 
@@ -82,9 +96,6 @@ define('SIERRA',     4);
 define("DEFAULT",      0);
 define("USB",          1);
 define("HDD",          2);
-define("MOUNT_EFI",    3);
-define("KEXT",         4);
-define("EXTRACT_DSDT", 5);
 define("RECOVERY",     6);
 
 // USB|HDD 1|2
@@ -98,12 +109,6 @@ define("SKIP_CLOVER",    7);
 define("SKIP_OS",        8);
 define("RAID",           9);
 define("DEVICE_TYPE",   10);
-
-// KEXT 4
-define("INSTALL_KEXT",    1);
-define("UNINSTALL_KEXT",  2);
-define("FIX_PERMISSIONS", 3);
-define("REBUILD_CACHE",   4);
 
 // RECOVERY 6
 define("COPY_CLOVER",61);
