@@ -1,9 +1,7 @@
-language: c
-
-compiler: gcc
+language: php
 
 script:
-  - gcc -o machelper main.c
+  - chmod +x machelper
   - ./machelper version
 
 notifications:

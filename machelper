@@ -1,0 +1,561 @@
+#!/usr/bin/php
+<?php
+/**
+ * IMPORTANT: machelper should never be run as root user, it'll prompt for a password when needed
+ *
+ * Created by PhpStorm.
+ * User: muntashir
+ * Date: 12/23/16
+ * Time: 8:23 AM
+ */
+use MacHelper\DSDTExtractor;
+use MacHelper\EFIMounter;
+use MacHelper\HackUpdater;
+use MacHelper\KextManager;
+
+/**
+ * Required files
+ */
+require_once __DIR__ . '/Includes/help.php';
+require_once __DIR__ . '/Includes/constants.php';
+require_once __DIR__ . '/Includes/autoload.php';
+
+/**
+ * Constants
+ */
+//define('PROGRAM_NAME', 'machelper');
+define('PROGRAM_NAME', $argv[0]);
+define('VERSION_INFO', 'v1.0.0 (php)');
+define('VERSION_RELEASE', 'Jun 28, 2017');
+define('COPYRIGHT_AUTHOR', 'Muntashir Al-Islam Akon');
+define('EXIT_SUCCESS', 0);
+define('EXIT_FAILURE', 1);
+
+/**
+ * Executable begin
+ */
+// Warn user if run as root
+if(exec('echo $USER') == 'root'){
+    fputs(STDERR, "This program must be run WITHOUT sudo permission. It'll prompt for password if needed.\n");
+    exit(EXIT_FAILURE);
+}
+
+// If no arg is provided, show help
+if($argc < 2){
+    show_help();
+    exit(EXIT_FAILURE);
+}
+
+
+/** @var string $verb 1st argument is the verb */
+$verb = $argv[1];
+switch ($verb){
+    /* Mount EFI */
+    case VERB_EFI:
+        efi_handler();
+        exit(EXIT_FAILURE); // This does nothing since exit() is already present in the above function
+    /* Mount EFI automatically */
+    case VERB_MOUNT_EFI:
+        efi_mount();
+        exit(EXIT_FAILURE);
+    /* Kext Management */
+    case VERB_KEXT:
+        kext_handler();
+        exit(EXIT_FAILURE); // This does nothing since exit() is already present in the above function
+    /* DSDT/SSDTs Management */
+    case VERB_DSDT:
+        dsdt_handler();
+        exit(EXIT_FAILURE); // This does nothing since exit() is already present in the above function
+    /* HackUpdater */
+    case VERB_HACKUPDATER:
+    case VERB_HU:
+        hu_handler();
+        exit(EXIT_FAILURE);
+    /* Help */
+    case VERB_HELP:
+        show_help();
+        exit(EXIT_SUCCESS);
+    /* Copyright */
+    case VERB_VERSION:
+    case VERB_INFO:
+        fputs(STDOUT,
+            /** @lang text */
+            'machelper ' . VERSION_INFO . ' (release: ' . VERSION_RELEASE . ")\n" .
+            'Copyright (c) 2016-2017 '. COPYRIGHT_AUTHOR . "\n"
+        );
+        exit(EXIT_SUCCESS);
+    default:
+        show_help();
+        exit(EXIT_FAILURE);
+}
+
+/**
+ * machelper hackupdater|hu ... command
+ */
+function hu_handler(){
+    global $argc, $argv;
+    if($argc > 2){
+        $sub_verb = $argv[2];
+        switch ($sub_verb){
+            case HU_INSTALL:
+                $status = (new HackUpdater())->install();
+                if($status){
+                    fputs(STDOUT, "Hackupdater was installed and enabled successfully!\n");
+                    exit(EXIT_SUCCESS);
+                }else{
+                    fputs(STDERR, "Hackupdater could not be installed! Try again.\n");
+                    exit(EXIT_FAILURE);
+                }
+            case HU_UNINSTALL:
+                $status = (new HackUpdater())->uninstall();
+                if($status){
+                    fputs(STDOUT, "Hackupdater was uninstalled successfully!\n");
+                    exit(EXIT_SUCCESS);
+                }else{
+                    fputs(STDERR, "Hackupdater could not be uninstalled! Try again.\n");
+                    exit(EXIT_FAILURE);
+                }
+            case HU_ENABLE:
+                $status = (new HackUpdater())->enable();
+                if($status){
+                    fputs(STDOUT, "Hackupdater was enabled successfully!\n");
+                    exit(EXIT_SUCCESS);
+                }else{
+                    fputs(STDERR, "Hackupdater could not be enabled! Be sure to install it first.\n");
+                    exit(EXIT_FAILURE);
+                }
+            case HU_DISABLE:
+                $status = (new HackUpdater())->disable();
+                if($status){
+                    fputs(STDOUT, "Hackupdater was disabled successfully!\n");
+                    exit(EXIT_SUCCESS);
+                }else{
+                    fputs(STDERR, "Hackupdater could not be disabled! Try again.\n");
+                    exit(EXIT_FAILURE);
+                }
+            case HU_UPDATE:
+                date_default_timezone_set('UTC');
+                fputs(STDOUT, "Running at " . ((new DateTime('NOW'))->format('Y/d/m H:i:s')) . "\n");
+                $hu = new HackUpdater();
+                if(!$hu->is_installed()){
+                    fputs(STDERR, "Hackupdater isn't installed. Run \e[1m".VERB_HU." ".HU_INSTALL."\e[0m to install hackupdater.\n");
+                    exit(EXIT_FAILURE);
+                }
+                if(!$hu->is_mac_os_updated()) {
+                    fputs(STDOUT, "macOS isn't updated or upgraded! Exiting...\n");
+                    exit(EXIT_FAILURE);
+                }else{
+                    fputs(STDOUT, "macOS is updated or upgraded! Running scripts and installing kexts...");
+                    $hu->update();
+                    fputs(STDOUT, "Done.\n");
+                    exit(EXIT_SUCCESS);
+                }
+            case HU_STATUS:
+                $hu = new HackUpdater();
+                if(!$hu->is_installed()){
+                    fputs(STDERR, "Hackupdater isn't installer.\n");
+                    exit(EXIT_FAILURE);
+                }
+                if($hu->is_enabled()){
+                    fputs(STDOUT, "Hackupdater is installed and enabled.\n");
+                }else{
+                    fputs(STDOUT, "Hackupdater is installed but not enabled.\n");
+                }
+                exit(EXIT_SUCCESS);
+            case HU_LIST:
+                if($argc == 4){
+                    $hu = new HackUpdater();
+                    if($hu->is_installed()){
+                        if(in_array($argv[3], ['kext', 'script'])){
+                            $list = $hu->list_($argv[3]);
+                            if(count($list) == 0){
+                                fputs(STDOUT, "No {$argv[3]} found.\n");
+                            }else{
+                                fputs(STDOUT, "List of added {$argv[3]}s:\n");
+                                foreach($list as $item)
+                                    fputs(STDOUT, " - " .$item . "\n");
+                            }
+                            exit(EXIT_SUCCESS);
+                        }
+                    }else{
+                        fputs(STDERR, "Hackupdater isn't installed. Run \e[1m".VERB_HU." ".HU_INSTALL."\e[0m to install hackupdater.\n");
+                        exit(EXIT_FAILURE);
+                    }
+                }
+                show_help(HELP_HU);
+                exit(EXIT_FAILURE);
+            case HU_ADD:
+                if($argc == 5){
+                    $hu = new HackUpdater();
+                    if($hu->is_installed()){
+                        if(in_array($argv[3], ['kext', 'script'])){
+                            $status = $hu->add($argv[3], $argv[4]);
+                            if($status){
+                                fputs(STDOUT, basename($argv[4]). " is added successfully!\n");
+                                exit(EXIT_SUCCESS);
+                            }else{
+                                fputs(STDOUT, "Add failed! Try again.\n");
+                                exit(EXIT_FAILURE);
+                            }
+                        }
+                    }else{
+                        fputs(STDERR, "Hackupdater isn't installed. Run \e[1m".VERB_HU." ".HU_INSTALL."\e[0m to install hackupdater.\n");
+                        exit(EXIT_FAILURE);
+                    }
+                }
+                show_help(HELP_HU);
+                exit(EXIT_FAILURE);
+            case HU_REMOVE:
+                if($argc == 5){
+                    $hu = new HackUpdater();
+                    if($hu->is_installed()){
+                        if(in_array($argv[3], ['kext', 'script'])){
+                            $status = $hu->remove($argv[3], $argv[4]);
+                            if($status){
+                                fputs(STDOUT, basename($argv[4]). " is removed successfully!\n");
+                                exit(EXIT_SUCCESS);
+                            }else{
+                                fputs(STDOUT, "Add failed! Try again.\n");
+                                exit(EXIT_FAILURE);
+                            }
+                        }
+                    }else{
+                        fputs(STDERR, "Hackupdater isn't installed. Run \e[1m".VERB_HU." ".HU_INSTALL."\e[0m to install hackupdater.\n");
+                        exit(EXIT_FAILURE);
+                    }
+                }
+                show_help(HELP_HU);
+                exit(EXIT_FAILURE);
+            default:
+                show_help(HELP_HU);
+                exit(EXIT_FAILURE);
+        }
+    }else{
+        show_help(HELP_HU);
+        exit(EXIT_FAILURE);
+    }
+}
+
+/**
+ * machelper dsdt ... command
+ */
+function dsdt_handler(){
+    global $argc, $argv;
+    if($argc > 2){
+        $sub_verb = $argv[2];
+        switch ($sub_verb){
+            case DSDT_CHECK:
+                $possibility = (new DSDTExtractor())->check();
+                switch ($possibility){
+                    case DSDTExtractor::CLOVER_ORIGIN_METHOD:
+                        fputs(STDOUT, "ACPI files found at EFI/CLOVER/Origin, which means you have already extracted original DSDT/SSDTs using Clover. " .
+                            "In this case, the program will only copy them to the destination file for disassemble and other patching.\n");
+                        exit(EXIT_SUCCESS);
+                    case DSDTExtractor::PATCHMATIC_POSSIBLE:
+                        fputs(STDOUT, "It seems, it MAY be possible to extract the original DSDT/SSDTs using `patchmatic` tool. If you're running it on a real " .
+                            "Mac, it's possible. However, for OSx86 Legacy users, it may still not be possible as this tool doesn't check " .
+                            "Legacy Clover folder. In this case, it's better you use Clover to extract DSDT/SSDTs (Pressing F4 in Clover " .
+                            "extracts ACPI table at EFI/CLOVER/ACPI/Origin).\n");
+                        exit(EXIT_SUCCESS);
+                    default:
+                        fputs(STDERR, "Extracting original DSDT/SSDTs isn't possible using this tool. Use Clover to extract DSDT/SSDTs (Pressing F4 in Clover " .
+                            "extracts ACPI table at EFI/CLOVER/ACPI/Origin).\n");
+                        exit(EXIT_FAILURE);
+                }
+            case DSDT_EXTRACT:
+                switch ($argc){
+                    case 5:
+                        $option = in_array($argv[3], ['force', 'disassemble']) ? $argv[3] : null;
+                        $target = file_exists($argv[4]) ? $argv[4] : null;
+                        break;
+                    case 4:
+                        $option = in_array($argv[3], ['force', 'disassemble']) ? $argv[3] : null;
+                        $target = ($option == null AND file_exists($argv[3])) ? $argv[3] : null;
+                        break;
+                    case 3:
+                        $option = null;
+                        $target = null;
+                        break;
+                    default:
+                        show_help(HELP_DSDT);
+                        exit(EXIT_FAILURE);
+                }
+                $dsdt = new DSDTExtractor($target, $option == 'force' ? true : false);
+                if(in_array($dsdt->extract(), [DSDTExtractor::CLOVER_ORIGIN_METHOD, DSDTExtractor::PATCHMATIC])){ // Success
+                    if($option == 'disassemble') exit($dsdt->disassemble() ? EXIT_SUCCESS : EXIT_FAILURE);
+                    else exit(EXIT_SUCCESS);
+                }else{
+                    fputs(STDERR, "Extraction of original DSDT/SSDTs isn't possible. Run using \e[1mforce\e[0m to force extract.\n");
+                    exit(EXIT_FAILURE);
+                }
+            case DSDT_DISASSEMBLE:
+                switch ($argc){
+                    case 5:
+                        $source = file_exists($argv[3]) ? $argv[3] : null;
+                        $target = file_exists($argv[4]) ? $argv[4] : null;
+                        break;
+                    case 4:
+                        $source = file_exists($argv[3]) ? $argv[3] : null;
+                        $target = null;
+                        break;
+                    default:
+                        show_help(HELP_DSDT);
+                        exit(EXIT_FAILURE);
+                }
+                exit(($source !== null AND (new DSDTExtractor())->disassemble($source, $target)) ? EXIT_SUCCESS : EXIT_FAILURE);
+            case DSDT_HELP:
+                show_help(HELP_DSDT);
+                exit(EXIT_SUCCESS);
+            default:
+                show_help(HELP_DSDT);
+                exit(EXIT_FAILURE);
+        }
+    }else{
+        show_help(HELP_DSDT);
+        exit(EXIT_FAILURE);
+    }
+}
+
+/**
+ * machelper kext ... command
+ */
+function kext_handler(){
+    global $argc, $argv;
+    if($argc > 2){
+        $sub_verb = $argv[2];
+        switch ($sub_verb){
+            case KEXT_INSTALL: // default is le
+                if($argc > 4){
+                    $installation_path = $argv[3] == 'sle' ? KextManager::LE : KextManager::SLE;
+                    $kext = new KextManager($installation_path);
+                    $kext->install_kext(array_diff_key($argv, [0,0,0,0]));
+                    exit(EXIT_SUCCESS);
+                }else{
+                    fputs(STDERR, "Invalid Arguments!\n" .
+                        "Run \e[1m".PROGRAM_NAME." ".VERB_KEXT." help\e[0m for help.\n");
+                    exit(EXIT_FAILURE);
+                }
+            case KEXT_UNINSTALL:
+            case KEXT_PURGE:
+                switch ($argc){
+                    case 5:
+                        $dir_name  = dirname($argv[4]);
+                        $file_name = basename($argv[4]);
+                        if($dir_name == '.'){ // Use [sle|le]
+                            $dir_name = $argv[3] == 'sle' ? KextManager::SLE : KextManager::LE;
+                        }
+                        break;
+                    case 4:
+                        $dir_name = dirname($argv[3]);
+                        $file_name = basename($argv[3]);
+                        break;
+                    default:
+                        $dir_name = null;
+                        $file_name = null;
+                }
+                $kext_file = $dir_name . '/' . $file_name;
+                if(in_array($dir_name, [KextManager::SLE, KextManager::LE]) AND file_exists($kext_file)){
+                    (new KextManager($dir_name))->uninstall_kext($kext_file);
+                    exit(EXIT_SUCCESS);
+                }else{
+                    fputs(STDERR, "Your requested kext could not be uninstalled. Either the requested kext could not be found" .
+                        " or there might be one or more error in the command.\n");
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            case KEXT_FIX_PERMISSIONS: // default is sle
+                $installation_path = ($argc == 4 AND $argv[3] == 'le') ? KextManager::LE : KextManager::SLE;
+                $kext = new KextManager($installation_path);
+                fputs(STDOUT, "Fixing permissions...");
+                $kext->fix_permission();
+                fputs(STDOUT, "Done.\nRebuilding kernel cache...\n");
+                $kext->rebuild_cache();
+                exit(EXIT_SUCCESS);
+            case KEXT_REBUILD_CACHE:
+                (new KextManager())->rebuild_cache();
+                exit(EXIT_SUCCESS);
+            case KEXT_HELP:
+                show_help(HELP_KEXT);
+                exit(EXIT_SUCCESS);
+            default:
+                show_help(HELP_KEXT);
+                exit(EXIT_FAILURE);
+        }
+    }else{
+        show_help(HELP_KEXT);
+        exit(EXIT_FAILURE);
+    }
+}
+
+/**
+ * machelper efi ... command
+ */
+function efi_handler(){
+    global $argc, $argv;
+    if($argc > 2){
+        $sub_verb = $argv[2]; // machelper <verb> <sub-verb>
+        switch ($sub_verb){
+            /*
+             * Mount EFI partition
+             */
+            case EFI_MOUNT:
+                if($argc == 3){ // No option is provided
+                    // Automatically mount the root disk's efi partition
+                    efi_mount();
+                    exit(EXIT_SUCCESS);
+                }elseif($argc == 4){ // Only one of the options are provided
+                    // Determine what the option is and take action
+                    // Disk Identifier is the top priority (although the syntax isn't)
+                    if(preg_match('/^disk\d+s\d+$/', $argv[3]) AND file_exists('/dev/' . $argv[3])){
+                        // efi-partition is given
+                        // Check if it is a valid efi partition
+                        $valid = false;
+                        $efi = new EFIMounter();
+                        foreach($efi->listEFIPartitions() as $EFIPartition) {
+                            if ($argv[3] === $EFIPartition){
+                                $valid = true;
+                                break;
+                            }
+                        }
+                        if($valid){
+                            // Always use force mount
+                            $done = $efi->mount($argv[3], true);
+                            if(!$done){
+                                fputs(STDERR, "Operation can't be completed! Try again.\n");
+                                exit(EXIT_FAILURE);
+                            }else{
+                                fputs(STDOUT, "The EFI partition is successfully mounted.\n");
+                                exit(EXIT_SUCCESS);
+                            }
+                        }else{
+                            // Show error saying that invalid efi-partition
+                            fputs(STDERR,
+                                "Invalid EFI partition! Please provide a valid EFI partition.\n" .
+                                "Run \e[1m".PROGRAM_NAME." ".VERB_EFI." ".EFI_LIST."\e[0m for a list of efi partitions.\n"
+                            );
+                            exit(EXIT_FAILURE);
+                        }
+                    }elseif(file_exists($argv[3])){
+                        // Mount point is given
+                        $efi = new EFIMounter($argv[3]);
+                        $disk = $efi->determineEFIPartition();
+                        // Always use force mount
+                        if($disk != null AND $efi->mount($disk, true)){
+                            fputs(STDOUT, "The EFI partition is successfully mounted.\n");
+                            exit(EXIT_SUCCESS);
+                        }else{
+                            fputs(STDOUT, "Mount failed! The root partition may not have any EFI partition.\n");
+                            exit(EXIT_FAILURE);
+                        }
+                    }else{
+                        // Show error saying that invalid efi-partition or mount-point
+                        fputs(STDERR,
+                            "Invalid EFI partition or Mount point! Try again with a vaild one.\n" .
+                            "Run \e[1m".PROGRAM_NAME." ".VERB_EFI." ".EFI_LIST."\e[0m for a list of efi partitions.\n"
+                        );
+                        exit(EXIT_FAILURE);
+                    }
+                }elseif ($argc == 5){ // Both of the options are provided
+                    $mount_point   = $argv[3];
+                    $efi_partition = $argv[4];
+                    if(file_exists($mount_point) AND preg_match('/^disk\d+s\d+$/', $efi_partition) AND file_exists('/dev/' . $efi_partition)){
+                        $valid = false;
+                        $efi = new EFIMounter($mount_point);
+                        foreach($efi->listEFIPartitions() as $EFIPartition) {
+                            if ($efi_partition === $EFIPartition){
+                                $valid = true;
+                                break;
+                            }
+                        }
+                        if($valid){
+                            // Always use force mount
+                            $done = $efi->mount($efi_partition, true);
+                            if(!$done){
+                                fputs(STDERR, "Operation can't be completed! Try again.\n");
+                                exit(EXIT_FAILURE);
+                            }else{
+                                fputs(STDOUT, "The EFI partition is successfully mounted.\n");
+                                exit(EXIT_SUCCESS);
+                            }
+                        }else{
+                            // Show error saying that invalid efi-partition
+                            fputs(STDERR,
+                                "Invalid EFI partition!\n" .
+                                "Run \e[1m".PROGRAM_NAME." ".VERB_EFI." ".EFI_LIST."\e[0m for a list of efi partitions.\n"
+                            );
+                            exit(EXIT_FAILURE);
+                        }
+                    }else{
+                        // Show error saying that invalid efi-partition or mount-point
+                        fputs(STDERR,
+                            "Invalid EFI partition or Mount point!\n" .
+                            "Run \e[1m".PROGRAM_NAME." ".VERB_EFI." ".EFI_LIST."\e[0m for a list of efi partitions.\n"
+                        );
+                        exit(EXIT_FAILURE);
+                    }
+                }else{
+                    // Show error saying invalid no. of arguments
+                    fputs(STDERR,
+                        "Invalid arguments!\n" .
+                        "Run \e[1m".PROGRAM_NAME." ".VERB_EFI." ".EFI_HELP."\e[0m for help.\n"
+                    );
+                    exit(EXIT_FAILURE);
+                }
+            /*
+             * Unmount/Eject EFI partition
+             */
+            case EFI_UNMOUNT:
+            case EFI_EJECT:
+                if($argc == 4){
+                    $done = (new EFIMounter())->unmount($argv[3]);
+                    if($done){
+                        fputs(STDOUT, "The EFI partition is successfully unmounted.\n");
+                        exit(EXIT_SUCCESS);
+                    }else{
+                        fputs(STDERR, "Unmount failed! Try again.\n");
+                        exit(EXIT_FAILURE);
+                    }
+                }else{
+                    // Show error saying that invalid no. of arguments
+                    fputs(STDERR,
+                        "Invalid argument(s)!\n" .
+                        "Run \e[1m".PROGRAM_NAME." ".VERB_EFI." ".EFI_HELP."\e[0m for help.\n"
+                    );
+                    exit(EXIT_FAILURE);
+                }
+            /*
+             * List EFI partitions
+             */
+            case EFI_LIST:
+                foreach((new EFIMounter())->listEFIPartitions() as $EFIPartition)
+                    fputs(STDOUT, $EFIPartition . "\n");
+                exit(EXIT_SUCCESS);
+            /*
+             * Print help
+             */
+            case EFI_HELP:
+                show_help(HELP_EFI);
+                exit(EXIT_SUCCESS);
+            default:
+                // Show error saying that invalid no. of arguments
+                fputs(STDERR,
+                    "Invalid argument(s)!\n" .
+                    "Run \e[1m".PROGRAM_NAME." ".VERB_EFI." ".EFI_HELP."\e[0m for help.\n"
+                );
+                exit(EXIT_FAILURE);
+        }
+    }else{
+        show_help(HELP_EFI);
+        exit(EXIT_FAILURE);
+    }
+}
+
+/**
+ * Mounts the efi partition of the root disk
+ */
+function efi_mount(){
+    if((new EFIMounter())->mountAutomatically()){
+        fputs(STDOUT, 'EFI partition is mounted at '. EFIMounter::DEFAULT_EFI_DIR . "\n");
+        exit(EXIT_SUCCESS);
+    }
+}
